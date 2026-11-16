@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lake-mirror"
+version = "1.0.0"
+description = "Local dual-replica lake consistency reconciliation and reversible repair orchestration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+lake-mirror = "lakemirror.cli:main"
+
+[tool.setuptools]
+packages = ["lakemirror"]
