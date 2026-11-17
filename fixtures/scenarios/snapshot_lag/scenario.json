@@ -1,0 +1,22 @@
+{
+  "default_seed": 42,
+  "description": "Primary has three snapshots while replica has two; the replica pointer is stale.",
+  "expected_plan": {
+    "manual_review_count": 4,
+    "operation_count": 4
+  },
+  "expected_scan": {
+    "active_diffs": 4,
+    "counts_by_code": {
+      "POINTER_STALE": 2,
+      "SNAPSHOT_LAG": 2
+    },
+    "ignored": 0
+  },
+  "purpose": "Show lag evidence and the table-level safety gate that prevents pointer-only automation on a lagging table.",
+  "scenario": "snapshot_lag",
+  "tables": [
+    "events",
+    "orders"
+  ]
+}

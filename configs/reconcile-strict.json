@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "primary_root": "../work/lake/primary",
+  "replica_root": "../work/lake/replica",
+  "workdir": "../work",
+  "ledger": "../work/ledger.db",
+  "tables": [
+    {
+      "name": "events",
+      "path": "tables/events",
+      "business_key": "event_id",
+      "partition_columns": ["day"]
+    },
+    {
+      "name": "orders",
+      "path": "tables/orders",
+      "business_key": "order_id",
+      "partition_columns": ["dt"]
+    }
+  ],
+  "checks": {
+    "file_size": true,
+    "sha256": true,
+    "row_count": true,
+    "partition_coverage": true,
+    "snapshot_chain": true,
+    "schema_compat": true,
+    "partition_spec": true
+  },
+  "repair": {
+    "mode": "strict",
+    "auto_fix": [
+      "FILE_MISSING_IN_REPLICA",
+      "FILE_EXTRA_IN_REPLICA",
+      "FILE_SIZE_MISMATCH",
+      "PARTITION_MISSING",
+      "PARTITION_EXTRA",
+      "POINTER_STALE"
+    ],
+    "manual_review": [
+      "DUPLICATE_LOGICAL_PATH",
+      "EMPTY_TABLE",
+      "FILE_SHA256_MISMATCH",
+      "INVALID_PARTITION_VALUE",
+      "PARTITION_COLUMN_MISSING",
+      "PARTITION_SPEC_MISMATCH",
+      "PATH_OUTSIDE_ROOT",
+      "ROW_COUNT_MISMATCH",
+      "SCHEMA_ADDITIVE_OK",
+      "SCHEMA_FIELD_MISSING",
+      "SCHEMA_FIELD_ORDER_MISMATCH",
+      "SCHEMA_NULLABILITY_MISMATCH",
+      "SCHEMA_TYPE_MISMATCH",
+      "SNAPSHOT_CHAIN_BROKEN",
+      "SNAPSHOT_FORK",
+      "SNAPSHOT_LAG"
+    ],
+    "safety": {
+      "allow_delete": true,
+      "max_operations": 200,
+      "backup_dir": "backups",
+      "dry_run_default": true
+    }
+  },
+  "ignore_rules": [
+    {
+      "code": "FILE_EXTRA_IN_REPLICA",
+      "table": "events",
+      "path_prefix": "data/day=2099",
+      "reason": "Example retention exclusion; no real fixture path matches."
+    }
+  ]
+}

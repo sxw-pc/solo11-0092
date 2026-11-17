@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "snapshot_id": "synthetic-report-2026-01",
+  "provenance_status": "ambiguous_backfill",
+  "target_file": "report.txt",
+  "target_sha256": "8582601ab567a3fe22e06e8a7fa255e18d91a9cefa09bdf83d0be92bff0c8867",
+  "mandatory_header": {"file": "header.txt", "sha256": "54cd3153c7b66ca633c69ea18f86376625eb7285487dcc64e32beb3f28351bed"},
+  "chunks": [
+    {"id": "metric-name", "alternatives": [
+      {"id": "name-public", "file": "chunk1-public.txt", "sha256": "72f7886b0f454862b30622b7e1e8d8c9c1c2ebcee7f0977b90a879a4d2c6fb82", "use_class": "external_allowed"},
+      {"id": "name-restricted", "file": "chunk1-restricted.txt", "sha256": "72f7886b0f454862b30622b7e1e8d8c9c1c2ebcee7f0977b90a879a4d2c6fb82", "use_class": "internal_only"}
+    ]},
+    {"id": "metric-value", "alternatives": [
+      {"id": "value-public-a", "file": "chunk2-public-a.txt", "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58", "use_class": "external_allowed"},
+      {"id": "value-public-b", "file": "chunk2-public-b.txt", "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58", "use_class": "external_allowed"},
+      {"id": "value-restricted", "file": "chunk2-restricted.txt", "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58", "use_class": "internal_only"}
+    ]},
+    {"id": "footer", "alternatives": [
+      {"id": "footer-public", "file": "chunk3-public.txt", "sha256": "48332fe667bc51ac4a51ba0efe734441c90def55c60a26d7db275ecbbcf42f15", "use_class": "external_allowed"},
+      {"id": "footer-restricted", "file": "chunk3-restricted.txt", "sha256": "48332fe667bc51ac4a51ba0efe734441c90def55c60a26d7db275ecbbcf42f15", "use_class": "internal_only"}
+    ]}
+  ],
+  "forbidden_pairs": [["name-public", "value-public-a"]],
+  "publication_contracts": [
+    {"kind": "reproducible_authorized", "audience": "external"},
+    {"kind": "origin_safe", "audience": "external"}
+  ]
+}
