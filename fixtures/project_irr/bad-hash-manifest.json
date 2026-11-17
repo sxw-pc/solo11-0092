@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "project_id": "SYN-PROJECT-1",
+  "snapshot_id": "irr-base-001",
+  "cashflow_file": "cashflows.csv",
+  "cashflow_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "row_count": 4,
+  "period_unit": "year",
+  "amount_unit": "cents",
+  "discount_convention": "annual_effective",
+  "admissible_rate_bps": [
+    0,
+    5000
+  ],
+  "hurdle_bps": 2500,
+  "investment_contracts": [
+    {
+      "kind": "hurdle_npv",
+      "approve_if": "npv_at_hurdle_positive"
+    },
+    {
+      "kind": "unique_irr",
+      "approve_if": "exactly_one_root_in_admissible_interval_and_root_at_least_hurdle"
+    }
+  ]
+}
