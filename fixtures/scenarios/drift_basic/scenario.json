@@ -1,0 +1,28 @@
+{
+  "default_seed": 42,
+  "description": "Missing files, extra files, one missing partition, one extra partition, size/SHA/row drift, and stale replica pointers.",
+  "expected_plan": {
+    "manual_review_count": 0,
+    "operation_count": 11
+  },
+  "expected_scan": {
+    "active_diffs": 14,
+    "counts_by_code": {
+      "FILE_EXTRA_IN_REPLICA": 2,
+      "FILE_MISSING_IN_REPLICA": 3,
+      "FILE_SHA256_MISMATCH": 2,
+      "FILE_SIZE_MISMATCH": 1,
+      "PARTITION_EXTRA": 1,
+      "PARTITION_MISSING": 2,
+      "POINTER_STALE": 2,
+      "ROW_COUNT_MISMATCH": 1
+    },
+    "ignored": 0
+  },
+  "purpose": "Exercise the full dry-run, execute, verify, idempotent rerun, and rollback path in lenient mode.",
+  "scenario": "drift_basic",
+  "tables": [
+    "events",
+    "orders"
+  ]
+}

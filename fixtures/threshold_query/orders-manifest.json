@@ -1,0 +1,32 @@
+{
+  "table": "orders",
+  "snapshot_id": "snap-threshold-0001",
+  "parent_snapshot_id": null,
+  "sequence": 1,
+  "created_at": "2024-01-01T00:00:00Z",
+  "schema": [
+    {
+      "name": "order_id",
+      "type": "STRING",
+      "nullable": false
+    },
+    {
+      "name": "amount",
+      "type": "DECIMAL",
+      "nullable": false
+    }
+  ],
+  "partition_spec": [
+    "dt"
+  ],
+  "files": [
+    {
+      "path": "orders.csv",
+      "partition": "dt=2024-01-01",
+      "size": 41,
+      "row_count": 4,
+      "sha256": "d426ab7a8401c10879004bb72d3e7ac04151b6b2f2ca1d9bb3df0dfc6e960e5d"
+    }
+  ],
+  "stats": {}
+}
