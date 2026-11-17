@@ -14,6 +14,8 @@ from .executor import execute_plan
 from .fixtures import generate_fixture
 from .row_fixture import SCENARIOS as ROW_SCENARIOS, generate_row_fixture
 from .row_contract import evaluate_row_contract
+from .gateway_fixture import SCENARIOS as GATEWAY_SCENARIOS, generate_gateway_fixture
+from .gateway_evidence import load_gateway_evidence
 from .ledger import Ledger
 from .plan_io import load_plan
 from .planner import build_plan
@@ -74,6 +76,18 @@ def cmd_row_fixture(args: argparse.Namespace) -> int:
 
 def cmd_row_contract(args: argparse.Namespace) -> int:
     print(pretty_json(evaluate_row_contract(args.workdir, args.contract, args.as_of)), end="")
+    return 0
+
+
+def cmd_gateway_fixture(args: argparse.Namespace) -> int:
+    print(pretty_json(generate_gateway_fixture(args.scenario, args.workdir)), end="")
+    return 0
+
+
+def cmd_gateway_evidence(args: argparse.Namespace) -> int:
+    print(pretty_json(load_gateway_evidence(
+        args.workdir, args.receipts, args.terms, as_of=args.as_of
+    )), end="")
     return 0
 
 
@@ -201,6 +215,18 @@ def _parser() -> argparse.ArgumentParser:
     row_contract.add_argument("--contract", required=True)
     row_contract.add_argument("--as-of", help="override observation time without changing the contract")
     row_contract.set_defaults(func=cmd_row_contract)
+
+    gateway_fixture = sub.add_parser("gateway-fixture", help="generate order and mock gateway evidence")
+    gateway_fixture.add_argument("--scenario", required=True, choices=GATEWAY_SCENARIOS)
+    gateway_fixture.add_argument("--workdir", required=True)
+    gateway_fixture.set_defaults(func=cmd_gateway_fixture)
+
+    gateway_evidence = sub.add_parser("gateway-evidence", help="validate and view as-of gateway receipts")
+    gateway_evidence.add_argument("--workdir", required=True)
+    gateway_evidence.add_argument("--receipts", required=True)
+    gateway_evidence.add_argument("--terms", required=True)
+    gateway_evidence.add_argument("--as-of", required=True)
+    gateway_evidence.set_defaults(func=cmd_gateway_evidence)
 
     scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
     scan.add_argument("--config", required=True)

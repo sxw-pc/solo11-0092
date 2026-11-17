@@ -6,6 +6,23 @@
 
 项目完全离线，运行期只使用 Python 3.10+ 标准库，测试使用 `unittest`，数据存储为本地文件系统与 SQLite。
 
+## 订单与网关凭证实验
+
+`gateway-fixture` 在独立工作目录生成订单/事件行、商家结算条款及模拟网关
+capture/chargeback 凭证；`gateway-evidence` 按观察时点核验凭证身份、来源、
+父交易和金额边界，并列出当前可见与尚未可见的凭证。它只读证据，**不作付款
+授权或追偿裁决**。与 `row-contract` 一起运行时，可比较订单生命周期证据和
+收款证据各自何时可见：
+
+```bash
+python -m lakemirror gateway-fixture --scenario advance_then_dispute --workdir ./outside-work
+python -m lakemirror row-contract --workdir ./outside-work --contract ./outside-work/row_contract.json
+python -m lakemirror gateway-evidence --workdir ./outside-work --receipts ./outside-work/gateway_receipts.json --terms ./outside-work/settlement_terms.json --as-of 2024-03-01T10:00:00Z
+```
+
+`wrong_reference` 和 `duplicate_receipt` 是无效凭证反例。fixture 目录应放在
+源码目录外，以免将生成产物混入项目快照。
+
 ---
 
 ## 1. 它是什么，不是什么
