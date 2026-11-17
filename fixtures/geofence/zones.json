@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+  {"type":"Feature","properties":{"zone_id":"polar-band"},"geometry":{"type":"Polygon","coordinates":[[[-60,60],[60,60],[60,80],[-60,80],[-60,60]]]}},
+  {"type":"Feature","properties":{"zone_id":"date-line-band"},"geometry":{"type":"Polygon","coordinates":[[[178,0],[-178,0],[-178,20],[178,20],[178,0]],[[179,5],[179,15],[-179,15],[-179,5],[179,5]]]}}
+]}

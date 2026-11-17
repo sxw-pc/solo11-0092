@@ -1,0 +1,42 @@
+{
+  "table": "shipments",
+  "snapshot_id": "snap-geo-0001",
+  "parent_snapshot_id": null,
+  "sequence": 1,
+  "created_at": "2024-01-01T00:00:00Z",
+  "schema": [
+    {
+      "name": "shipment_id",
+      "type": "STRING",
+      "nullable": false
+    },
+    {
+      "name": "longitude",
+      "type": "DECIMAL",
+      "nullable": false
+    },
+    {
+      "name": "latitude",
+      "type": "DECIMAL",
+      "nullable": false
+    },
+    {
+      "name": "dt",
+      "type": "STRING",
+      "nullable": false
+    }
+  ],
+  "partition_spec": [
+    "dt"
+  ],
+  "files": [
+    {
+      "path": "shipments.csv",
+      "partition": "dt=2024-01-01",
+      "size": 99,
+      "row_count": 3,
+      "sha256": "955035babc288c0edae5101d3b08d2cbb75e64f41b181eba0dc4dabdd892c8cb"
+    }
+  ],
+  "stats": {}
+}

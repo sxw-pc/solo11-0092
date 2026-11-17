@@ -1,0 +1,30 @@
+{
+  "default_seed": 42,
+  "description": "Schema type/nullability/field drift plus partition-spec and partition-column drift across two synthetic tables.",
+  "expected_plan": {
+    "manual_review_count": 14,
+    "operation_count": 14
+  },
+  "expected_scan": {
+    "active_diffs": 14,
+    "counts_by_code": {
+      "FILE_EXTRA_IN_REPLICA": 2,
+      "FILE_MISSING_IN_REPLICA": 2,
+      "PARTITION_COLUMN_MISSING": 1,
+      "PARTITION_EXTRA": 2,
+      "PARTITION_MISSING": 2,
+      "PARTITION_SPEC_MISMATCH": 1,
+      "SCHEMA_ADDITIVE_OK": 1,
+      "SCHEMA_FIELD_MISSING": 1,
+      "SCHEMA_NULLABILITY_MISMATCH": 1,
+      "SCHEMA_TYPE_MISMATCH": 1
+    },
+    "ignored": 0
+  },
+  "purpose": "Prove that schema and partition-spec drift blocks all automation on the affected tables and never emits DDL.",
+  "scenario": "schema_drift",
+  "tables": [
+    "events",
+    "orders"
+  ]
+}

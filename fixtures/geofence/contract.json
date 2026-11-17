@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "shipments_manifest": "fixtures/geofence/shipments-manifest.json",
+  "zones": "fixtures/geofence/zones.json",
+  "contracts": [
+    "geodesic_edges",
+    "rhumb_edges"
+  ],
+  "boundary_rule": "inside_outer_outside_holes"
+}
