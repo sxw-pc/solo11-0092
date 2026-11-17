@@ -1,0 +1,13 @@
+{
+  "ancestor": "fixtures/fork_merge/S0.json",
+  "primary": "fixtures/fork_merge/S1D.json",
+  "replica": "fixtures/fork_merge/S2U.json",
+  "contracts": [
+    "file_strict",
+    "field_disjoint"
+  ],
+  "expected_merge_parents": [
+    "S1D",
+    "S2U"
+  ]
+}

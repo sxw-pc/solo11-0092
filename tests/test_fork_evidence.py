@@ -16,3 +16,12 @@ class ForkEvidenceTests(unittest.TestCase):
         self.assertEqual((base["status"],left["status"],right["status"]),("hold","hold","approved"))
         self.assertIsNone(result["merge_verdict"])
         self.assertIsNone(result["merged_snapshot"])
+
+    def test_delete_versus_update_conflict_fixture(self):
+        root = Path(__file__).resolve().parents[1]
+        result = inspect_fork_contract(root / "fixtures/fork_merge/conflict-contract.json")
+        self.assertIn("O2", result["rows_by_snapshot"]["S0"])
+        self.assertNotIn("O2", result["rows_by_snapshot"]["S1D"])
+        self.assertEqual(result["rows_by_snapshot"]["S2U"]["O2"]["status"], "closed")
+        self.assertTrue(result["chain_forked"])
+        self.assertIsNone(result["merge_verdict"])
