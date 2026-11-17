@@ -1,0 +1,26 @@
+# Generated local sandbox, fixtures, reports, backups, and SQLite ledger
+work/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+# Test and editor caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+node_modules/
+*.pyc
+.benchmarks/
+.env
