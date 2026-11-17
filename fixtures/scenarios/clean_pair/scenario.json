@@ -1,0 +1,19 @@
+{
+  "default_seed": 42,
+  "description": "Primary and replica manifests, data files, snapshot history, and pointers are identical.",
+  "expected_plan": {
+    "manual_review_count": 0,
+    "operation_count": 0
+  },
+  "expected_scan": {
+    "active_diffs": 0,
+    "counts_by_code": {},
+    "ignored": 0
+  },
+  "purpose": "Baseline for proving that a consistent pair produces no conflicts and an empty plan.",
+  "scenario": "clean_pair",
+  "tables": [
+    "events",
+    "orders"
+  ]
+}

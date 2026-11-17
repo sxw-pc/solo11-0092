@@ -1,0 +1,4 @@
+lot,cost_cents,base_potency,bias_slope
+A,100,4,0
+B,200,8,1
+C,220,10,-1

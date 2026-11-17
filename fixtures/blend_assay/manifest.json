@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "synthetic-assay-2026-01",
+  "assay_file": "assay.csv",
+  "assay_sha256": "ba3824f01bd6890541f5247a6b5e3cb4386d05bc5b2bf90b00e0a267b3f3ffad",
+  "batch_total": "1",
+  "potency_minimum": "6",
+  "budget_cents": "142",
+  "shared_calibration_bias": {"minimum": "-2", "maximum": "2"},
+  "contracts": ["nominal_calibration", "all_calibrations"]
+}
