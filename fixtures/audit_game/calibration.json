@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "synthetic-lake-audit-2026-01",
+  "attack_modes": ["FILE_SHA256_MISMATCH", "SCHEMA_TYPE_MISMATCH", "SNAPSHOT_FORK"],
+  "case_prior_counts": [7, 2, 1],
+  "one_check_per_window": true,
+  "repetitions_per_cell": 10,
+  "calibration_hits": [
+    {"check": "byte_sha_recheck", "hits": [10, 0, 4]},
+    {"check": "schema_diff", "hits": [0, 10, 4]},
+    {"check": "row_provenance", "hits": [8, 4, 4]},
+    {"check": "snapshot_chain", "hits": [2, 2, 10]}
+  ],
+  "contracts": ["worst_case_guarantee", "prior_weighted_yield"]
+}

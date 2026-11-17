@@ -1,0 +1,255 @@
+{
+  "batches": [
+    {
+      "backup_dir": "/sandbox/work/backups/batch-1",
+      "batch_id": "batch-1",
+      "finished_at": "2024-04-01T00:01:02Z",
+      "plan_id": "plan-cccccccccccccccc",
+      "started_at": "2024-04-01T00:01:00Z",
+      "status": "completed",
+      "summary": {
+        "executed": 1,
+        "failed": 0
+      }
+    }
+  ],
+  "boundaries": [
+    "The executor writes only inside the configured replica sandbox under workdir.",
+    "No network, cloud, database, or foreign-cluster connection is used.",
+    "Manual-review operations are never executed automatically.",
+    "Every mutating batch has a local backup directory and a rollback record.",
+    "The primary lake directory is read-only to this tool."
+  ],
+  "diffs": [
+    {
+      "actual": null,
+      "auto_fixable": true,
+      "code": "FILE_MISSING_IN_REPLICA",
+      "diff_id": "diff-111111111111-1",
+      "evidence": {
+        "logical_key": "dt=2024-01-01|data/dt=2024-01-01/part-0001.csv"
+      },
+      "expected": {
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 42
+      },
+      "ignore_reason": null,
+      "ignored": false,
+      "partition": "dt=2024-01-01",
+      "path": "data/dt=2024-01-01/part-0001.csv",
+      "run_id": "scan-demo",
+      "severity": "high",
+      "suggestion": "Copy the verified primary file into the replica.",
+      "table": "orders"
+    },
+    {
+      "actual": "STRING",
+      "auto_fixable": false,
+      "code": "SCHEMA_TYPE_MISMATCH",
+      "diff_id": "diff-222222222222-1",
+      "evidence": {
+        "blocking": true,
+        "message": "field amount type differs"
+      },
+      "expected": "DECIMAL",
+      "ignore_reason": null,
+      "ignored": false,
+      "partition": "",
+      "path": "amount",
+      "run_id": "scan-demo",
+      "severity": "high",
+      "suggestion": "Schema drift is blocking and needs owner review.",
+      "table": "orders"
+    },
+    {
+      "actual": {
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "size": 5
+      },
+      "auto_fixable": false,
+      "code": "FILE_EXTRA_IN_REPLICA",
+      "diff_id": "diff-333333333333-1",
+      "evidence": {
+        "logical_key": "dt=2024-01-02|data/dt=2024-01-02/part-9999.csv"
+      },
+      "expected": null,
+      "ignore_reason": "owner is investigating",
+      "ignored": true,
+      "partition": "dt=2024-01-02",
+      "path": "data/dt=2024-01-02/part-9999.csv",
+      "run_id": "scan-demo",
+      "severity": "medium",
+      "suggestion": "Delete the unreferenced replica file after backup.",
+      "table": "orders"
+    }
+  ],
+  "ignore_rules": [
+    {
+      "code": "FILE_EXTRA_IN_REPLICA",
+      "path_prefix": "data/dt=2024-01-02/part-9999.csv",
+      "reason": "owner is investigating",
+      "table": "orders"
+    }
+  ],
+  "ledger": [
+    {
+      "batch_id": null,
+      "created_at": "2024-04-01T00:00:02Z",
+      "event": "scan_completed",
+      "event_id": 1,
+      "payload": {
+        "diff_count": 3
+      },
+      "payload_json": "{\"diff_count\":3}",
+      "run_id": "scan-demo"
+    },
+    {
+      "batch_id": "batch-1",
+      "created_at": "2024-04-01T00:01:02Z",
+      "event": "batch_finished",
+      "event_id": 2,
+      "payload": {
+        "executed": 1
+      },
+      "payload_json": "{\"executed\":1}",
+      "run_id": null
+    }
+  ],
+  "plans": [
+    {
+      "config_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "config_path": "/sandbox/work/config.json",
+      "executable": true,
+      "kind": "executable",
+      "manual_review_count": 1,
+      "operation_count": 2,
+      "operations": [
+        {
+          "auto_executable": true,
+          "diff_codes": [
+            "FILE_MISSING_IN_REPLICA"
+          ],
+          "expected": {
+            "size": 42
+          },
+          "impact": {
+            "bytes": 42,
+            "destructive": false,
+            "files": 1,
+            "table": "orders"
+          },
+          "op_id": "op-0001-abcdef12",
+          "partition": "dt=2024-01-01",
+          "path": "data/dt=2024-01-01/part-0001.csv",
+          "preconditions": [
+            "plan fingerprint matches"
+          ],
+          "rollback": "remove the copied file",
+          "source_rel": "data/dt=2024-01-01/part-0001.csv",
+          "table": "orders",
+          "target_rel": "data/dt=2024-01-01/part-0001.csv",
+          "type": "copy_file"
+        },
+        {
+          "auto_executable": false,
+          "diff_codes": [
+            "SCHEMA_TYPE_MISMATCH"
+          ],
+          "expected": "DECIMAL",
+          "impact": {
+            "blocking": true,
+            "table": "orders"
+          },
+          "op_id": "op-0002-fedcba98",
+          "partition": "",
+          "path": "amount",
+          "preconditions": [
+            "human owner confirms the expected state"
+          ],
+          "reason": "Schema drift is blocking and needs owner review.",
+          "rollback": "none",
+          "source_rel": null,
+          "table": "orders",
+          "target_rel": null,
+          "type": "manual_review"
+        }
+      ],
+      "plan_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "plan_id": "plan-cccccccccccccccc",
+      "scan_id": "scan-demo",
+      "schema_version": 1,
+      "workdir": "/sandbox/work"
+    }
+  ],
+  "project": "lake-mirror",
+  "run": {
+    "config_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "config_path": "/sandbox/work/config.json",
+    "finished_at": "2024-04-01T00:00:02Z",
+    "primary_root": "/sandbox/work/lake/primary",
+    "replica_root": "/sandbox/work/lake/replica",
+    "run_id": "scan-demo",
+    "started_at": "2024-04-01T00:00:00Z",
+    "status": "completed"
+  },
+  "schema_version": 1,
+  "snapshots": [
+    {
+      "created_at": "2024-03-01T00:00:00Z",
+      "file_count": 2,
+      "issues": [],
+      "parent_snapshot_id": null,
+      "run_id": "scan-demo",
+      "sequence": 1,
+      "side": "primary",
+      "snapshot_id": "snap-orders-0001",
+      "source": "primary",
+      "table_name": "orders",
+      "total_bytes": 120
+    },
+    {
+      "created_at": "2024-03-02T00:00:00Z",
+      "file_count": 2,
+      "issues": [],
+      "parent_snapshot_id": "snap-orders-0001",
+      "run_id": "scan-demo",
+      "sequence": 2,
+      "side": "replica",
+      "snapshot_id": "snap-orders-0002",
+      "source": "replica",
+      "table_name": "orders",
+      "total_bytes": 115
+    }
+  ],
+  "summary": {
+    "active_diffs": 2,
+    "auto_fixable_diffs": 1,
+    "counts_by_code": {
+      "FILE_EXTRA_IN_REPLICA": 1,
+      "FILE_MISSING_IN_REPLICA": 1,
+      "SCHEMA_TYPE_MISMATCH": 1
+    },
+    "counts_by_severity": {
+      "high": 2,
+      "medium": 1
+    },
+    "ignored_count": 1,
+    "manual_review_diffs": 1,
+    "tables": 1,
+    "total_diffs": 3
+  },
+  "tables": {
+    "orders": {
+      "business_key": "order_id",
+      "partition_columns": [
+        "dt"
+      ],
+      "primary_bytes": 120,
+      "primary_files": 2,
+      "primary_snapshot": "snap-orders-0002",
+      "replica_bytes": 115,
+      "replica_files": 2,
+      "replica_snapshot": "snap-orders-0002"
+    }
+  }
+}
