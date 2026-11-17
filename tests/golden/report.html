@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Lake Mirror report scan-demo</title>
+<style>
+:root { color-scheme: light dark; --ink:#17212b; --muted:#5c6b7a; --line:#ccd5df;
+  --bg:#f7f9fb; --card:#ffffff; --accent:#0b6e6e; --warn:#9a5b00; --bad:#a1283a; }
+@media (prefers-color-scheme: dark) { :root { --ink:#e7edf3; --muted:#a8b4c0; --line:#384553;
+  --bg:#111820; --card:#18222c; --accent:#6cd4d4; --warn:#f3bd66; --bad:#ff8b9b; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif, system-ui, sans-serif; }
+header, main, footer { max-width:1180px; margin:0 auto; padding:0 22px; }
+header { padding-top:32px; }
+h1 { margin:0 0 6px; font-size:28px; letter-spacing:-.02em; }
+h2 { margin-top:34px; border-bottom:1px solid var(--line); padding-bottom:7px; font-size:19px; }
+h3 { margin-top:22px; font-size:16px; }
+p.lead { color:var(--muted); margin-top:0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:15px; }
+.card b { display:block; font-size:24px; margin-top:3px; }
+.muted { color:var(--muted); }
+.badge { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+.badge.bad { color:var(--bad); border-color:var(--bad); }
+.badge.warn { color:var(--warn); border-color:var(--warn); }
+table { width:100%; border-collapse:collapse; background:var(--card); margin:12px 0 20px; }
+th, td { text-align:left; border:1px solid var(--line); padding:7px 9px; vertical-align:top; }
+th { background:color-mix(in srgb, var(--card) 80%, var(--accent) 20%); }
+code { font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:13px; overflow-wrap:anywhere; }
+details { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+nav a { color:var(--accent); margin-right:14px; }
+footer { color:var(--muted); padding:28px 22px 44px; font-size:13px; }
+@media print { nav { display:none; } body { background:white; color:black; } }
+</style>
+</head>
+<body>
+<header>
+<p class="badge">local-only / read-only report</p>
+<h1>Lake Mirror reconciliation report</h1>
+<p class="lead">Dual-copy local lake consistency, deterministic repair plan, and auditable rollback.</p>
+<nav><a href="#summary">Summary</a><a href="#conflicts">Conflicts</a><a href="#snapshots">Snapshots</a><a href="#plans">Plans</a><a href="#batches">Batches</a><a href="#boundaries">Safety</a></nav>
+</header>
+<main>
+<section id="summary">
+<h2>Run summary</h2>
+<p><span class="badge">completed</span> <code>scan-demo</code></p>
+<p class="muted">Started 2024-04-01T00:00:00Z · finished 2024-04-01T00:00:02Z · config <code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></p>
+<div class="grid"><div class="card"><span class="muted">Tables</span><b>1</b></div><div class="card"><span class="muted">Active conflicts</span><b>2</b></div><div class="card"><span class="muted">Auto-fixable</span><b>1</b></div><div class="card"><span class="muted">Manual review</span><b>1</b></div><div class="card"><span class="muted">Ignored</span><b>1</b></div></div>
+</section>
+<section id="conflicts">
+<h2>Conflict classification</h2>
+<table><thead><tr><th>Severity</th><th>Code</th><th>Table</th><th>Partition</th><th>Path</th><th>Expected</th><th>Actual</th><th>Suggested action</th></tr></thead><tbody><tr><td>high</td><td>FILE_MISSING_IN_REPLICA</td><td>orders</td><td>dt=2024-01-01</td><td>data/dt=2024-01-01/part-0001.csv</td><td>{&#x27;size&#x27;: 42, &#x27;sha256&#x27;: &#x27;bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&#x27;}</td><td>None</td><td>Copy the verified primary file into the replica.</td></tr><tr><td>high</td><td>SCHEMA_TYPE_MISMATCH</td><td>orders</td><td>-</td><td>amount</td><td>DECIMAL</td><td>STRING</td><td>Schema drift is blocking and needs owner review.</td></tr></tbody></table>
+<h3>Ignore rules and audited exclusions</h3>
+<table><thead><tr><th>Code</th><th>Table</th><th>Path prefix</th><th>Reason</th></tr></thead><tbody><tr><td>FILE_EXTRA_IN_REPLICA</td><td>orders</td><td>data/dt=2024-01-02/part-9999.csv</td><td>owner is investigating</td></tr></tbody></table><h3>Ignored conflict evidence</h3><table><thead><tr><th>Code</th><th>Table</th><th>Partition</th><th>Path</th><th>Reason</th></tr></thead><tbody><tr><td>FILE_EXTRA_IN_REPLICA</td><td>orders</td><td>dt=2024-01-02</td><td>data/dt=2024-01-02/part-9999.csv</td><td>owner is investigating</td></tr></tbody></table>
+</section>
+<section id="snapshots">
+<h2>Snapshot chains</h2>
+<table><thead><tr><th>Side</th><th>Table</th><th>Snapshot</th><th>Sequence</th><th>Parent</th><th>Files</th><th>Bytes</th></tr></thead><tbody><tr><td>primary</td><td>orders</td><td>snap-orders-0001</td><td>1</td><td>-</td><td>2</td><td>120</td></tr><tr><td>replica</td><td>orders</td><td>snap-orders-0002</td><td>2</td><td>snap-orders-0001</td><td>2</td><td>115</td></tr></tbody></table>
+</section>
+<section id="plans">
+<h2>Repair plan</h2>
+<h3><code>plan-cccccccccccccccc</code> <span class="badge">executable</span></h3><p class="muted">Operations: 2; manual: 1.</p><table><thead><tr><th>#</th><th>Type</th><th>Table</th><th>Partition</th><th>Path</th><th>Auto</th><th>Reason</th></tr></thead><tbody><tr><td>1</td><td>copy_file</td><td>orders</td><td>dt=2024-01-01</td><td>data/dt=2024-01-01/part-0001.csv</td><td>yes</td><td></td></tr><tr><td>2</td><td>manual_review</td><td>orders</td><td></td><td>amount</td><td>no</td><td>Schema drift is blocking and needs owner review.</td></tr></tbody></table>
+</section>
+<section id="batches">
+<h2>Execution and rollback</h2>
+<table><thead><tr><th>Batch</th><th>Status</th><th>Backup directory</th><th>Started</th><th>Finished</th></tr></thead><tbody><tr><td>batch-1</td><td>completed</td><td>/sandbox/work/backups/batch-1</td><td>2024-04-01T00:01:00Z</td><td>2024-04-01T00:01:02Z</td></tr></tbody></table>
+
+<details>
+<summary>Safe operation sequence</summary>
+<ol>
+<li><code>python -m lakemirror scan --config configs/reconcile-basic.json --workdir ./work</code></li>
+<li><code>python -m lakemirror plan --scan-id latest --workdir ./work --out ./work/plan.json</code></li>
+<li><code>python -m lakemirror apply --plan ./work/plan.json --workdir ./work</code></li>
+<li><code>python -m lakemirror apply --plan ./work/plan.json --workdir ./work --execute</code></li>
+<li><code>python -m lakemirror verify --batch-id latest --workdir ./work</code></li>
+<li><code>python -m lakemirror rollback --batch-id latest --workdir ./work --execute</code></li>
+</ol>
+<p>Execution is always rejected unless the plan fingerprint, config fingerprint, path boundaries, and source hashes still match.</p>
+</details>
+
+</section>
+<section id="boundaries">
+<h2>Safety boundaries</h2>
+<ul><li>The executor writes only inside the configured replica sandbox under workdir.</li><li>No network, cloud, database, or foreign-cluster connection is used.</li><li>Manual-review operations are never executed automatically.</li><li>Every mutating batch has a local backup directory and a rollback record.</li><li>The primary lake directory is read-only to this tool.</li></ul>
+</section>
+</main>
+<footer>Generated offline by Lake Mirror. This document has no external assets, scripts, or network references.</footer>
+</body>
+</html>
