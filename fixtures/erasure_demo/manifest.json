@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "table": "orders",
+  "snapshot_id": "snap-erasure-0001",
+  "source_file_rel": "data/dt=2024-01-01/part-erasure.csv",
+  "codec": "gf256-vandermonde-3-of-5",
+  "field_polynomial": "0x11b",
+  "generator_rows": [
+    [
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      2,
+      4
+    ]
+  ],
+  "original_size": 64,
+  "shard_size": 22,
+  "shards": [
+    {
+      "index": 0,
+      "file": "shard-0.bin",
+      "sha256": "a6af1a4b49703ae613e76dbf3a1ce6c3e39e34a1ef0e6786f622d16867953700"
+    },
+    {
+      "index": 1,
+      "file": "shard-1.bin",
+      "sha256": "0b5c5d0ccb7d05b06f938bcb8fe596540828b9e42746feb8931db03ef9e01077"
+    },
+    {
+      "index": 2,
+      "file": null,
+      "sha256": null
+    },
+    {
+      "index": 3,
+      "file": "shard-3.bin",
+      "sha256": "59a17242aab96c41dd341201125f9ccac6f93cc10c4b38c4346f6428b29ff689"
+    },
+    {
+      "index": 4,
+      "file": "shard-4.bin",
+      "sha256": "ce136d10740cdab52064b1e5e5f51d8e369fc363dd7115c2e3f6518aa4a6f00e"
+    }
+  ],
+  "contracts": [
+    "strict_all_shards",
+    "digest_quorum"
+  ],
+  "trusted_file": "trusted-file.json"
+}
