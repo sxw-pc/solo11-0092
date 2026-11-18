@@ -13,6 +13,8 @@ from .config import Config, load_config
 from .executor import execute_plan
 from .erasure_evidence import inspect_erasure_manifest
 from .fixtures import generate_fixture
+from .privacy_evidence import PrivacyEvidenceError, release_privacy_table, verify_privacy_release
+from .privacy_release import write_release_bundle
 from .ledger import Ledger
 from .plan_io import load_plan
 from .planner import build_plan
@@ -68,6 +70,33 @@ def cmd_fixtures(args: argparse.Namespace) -> int:
 
 def cmd_erasure_evidence(args: argparse.Namespace) -> int:
     print(pretty_json(inspect_erasure_manifest(args.manifest)), end="")
+    return 0
+
+
+def _release_error(exc: Exception) -> int:
+    return _fail(str(exc), getattr(exc, "code", "PRIVACY_RELEASE_BLOCKED"))
+
+
+def cmd_privacy_release(args: argparse.Namespace) -> int:
+    try:
+        release = release_privacy_table(args.contract, args.kind)
+        written = write_release_bundle(release, args.out_dir) if args.out_dir else {}
+    except (PrivacyEvidenceError, LakeMirrorError) as exc:
+        return _release_error(exc)
+    print(pretty_json(dict(release, written=written) if written else release), end="")
+    return 0
+
+
+def cmd_privacy_verify(args: argparse.Namespace) -> int:
+    try:
+        artifact = json.loads(Path(args.artifact).read_text(encoding="utf-8"))
+        receipt = json.loads(Path(args.receipt).read_text(encoding="utf-8"))
+        result = verify_privacy_release(args.contract, args.kind, artifact, receipt)
+    except (OSError, json.JSONDecodeError) as exc:
+        return _fail(str(exc), "RELEASE_INPUT_UNREADABLE")
+    except (PrivacyEvidenceError, LakeMirrorError) as exc:
+        return _release_error(exc)
+    print(pretty_json(result), end="")
     return 0
 
 
@@ -188,6 +217,19 @@ def _parser() -> argparse.ArgumentParser:
     erasure = sub.add_parser("erasure-evidence", help="inspect local lake shard evidence")
     erasure.add_argument("--manifest", required=True)
     erasure.set_defaults(func=cmd_erasure_evidence)
+
+    release = sub.add_parser("privacy-release", help="build a contract-authorized synthetic table release")
+    release.add_argument("--contract", required=True)
+    release.add_argument("--kind", required=True, choices=["exact_margins", "rounded_margins"])
+    release.add_argument("--out-dir")
+    release.set_defaults(func=cmd_privacy_release)
+
+    privacy_verify = sub.add_parser("privacy-verify", help="re-verify a release artifact and receipt")
+    privacy_verify.add_argument("--contract", required=True)
+    privacy_verify.add_argument("--kind", required=True, choices=["exact_margins", "rounded_margins"])
+    privacy_verify.add_argument("--artifact", required=True)
+    privacy_verify.add_argument("--receipt", required=True)
+    privacy_verify.set_defaults(func=cmd_privacy_verify)
 
     scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
     scan.add_argument("--config", required=True)

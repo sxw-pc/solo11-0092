@@ -5,13 +5,40 @@
   "cells_file": "cells-corrected.csv",
   "cells_sha256": "fadc97c63e70f5b9a52dd8326ca6ec6dd7bdcf8428c5c2b8904ae3298388ce58",
   "row_count": 6,
-  "rows": ["R1", "R2"],
-  "columns": ["C1", "C2", "C3"],
+  "rows": [
+    "R1",
+    "R2"
+  ],
+  "columns": [
+    "C1",
+    "C2",
+    "C3"
+  ],
   "sensitive_if_count_below": 2,
   "protection_rule": "each_sensitive_cell_has_at_least_two_feasible_nonnegative_integer_values_given_public_artifact",
   "rounding_quantum": 5,
   "publication_contracts": [
-    {"kind": "exact_margins", "publish_margins": "exact", "objective": "minimum_suppressed_cells"},
-    {"kind": "rounded_margins", "publish_margins": "nearest_five", "objective": "minimum_suppressed_cells"}
-  ]
+    {
+      "kind": "exact_margins",
+      "publish_margins": "exact",
+      "objective": "minimum_suppressed_cells"
+    },
+    {
+      "kind": "rounded_margins",
+      "publish_margins": "nearest_five",
+      "objective": "minimum_suppressed_cells"
+    }
+  ],
+  "declared_margins": {
+    "row_totals": {
+      "R1": 13,
+      "R2": 10
+    },
+    "column_totals": {
+      "C1": 7,
+      "C2": 10,
+      "C3": 6
+    },
+    "grand_total": 23
+  }
 }

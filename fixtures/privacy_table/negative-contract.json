@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "privacy-table-negative",
+  "cells_file": "cells-negative.csv",
+  "cells_sha256": "a7eabbb6e3069816235078dc912925ac8553e69d2d17552b76364ba13095cdab",
+  "row_count": 6,
+  "rows": [
+    "R1",
+    "R2"
+  ],
+  "columns": [
+    "C1",
+    "C2",
+    "C3"
+  ],
+  "sensitive_if_count_below": 2,
+  "protection_rule": "each_sensitive_cell_has_at_least_two_feasible_nonnegative_integer_values_given_public_artifact",
+  "rounding_quantum": 5,
+  "publication_contracts": [
+    {
+      "kind": "exact_margins",
+      "publish_margins": "exact",
+      "objective": "minimum_suppressed_cells"
+    },
+    {
+      "kind": "rounded_margins",
+      "publish_margins": "nearest_five",
+      "objective": "minimum_suppressed_cells"
+    }
+  ]
+}

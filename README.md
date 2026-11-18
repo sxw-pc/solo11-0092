@@ -141,7 +141,43 @@ python -m lakemirror serve --workdir ./work --host 127.0.0.1 --port 8765
 python -m unittest discover -s tests -v
 ```
 
-### 2.11 静态守卫
+### 2.11 合成二维统计表的安全发布
+
+离线合成表 `fixtures/privacy_table/`（2 行 × 3 列，真值可核：行总 10/10、列总 7/7/6、总计 20，敏感阈值 `<2`）用于演练「小格遮蔽 + 边际公开」的发布决策：
+
+```bash
+python -m lakemirror privacy-release --contract fixtures/privacy_table/contract.json \
+  --kind rounded_margins --out-dir ./work/privacy
+
+python -m lakemirror privacy-verify --contract fixtures/privacy_table/contract.json \
+  --kind rounded_margins \
+  --artifact ./work/privacy/public-artifact.json \
+  --receipt ./work/privacy/internal-receipt.json
+```
+
+规则：
+
+- 按事前授权合同二选一：`exact_margins`（精确边际）或 `rounded_margins`（各整数总和四舍五入到最近 5）。
+- 在全部非敏感格的子集上按遮格数从小到大穷举，选最少遮格方案；同规模并列按行主序字典序稳定裁决。
+- 对每个真实 `<2` 的格，证明在与最终公开物（可见格 + 授权边际）一致的全部非负整数补全中至少有两个不同取值。
+- `public-artifact` 只含可见真实整数、授权边际、合同与发布 ID；`internal-receipt` 额外含源 SHA、真实值、候选见证、最优性证据与快照身份，仅供内部审计。
+- 公开物绝不包含内部候选值、真实遮格列表、源 CSV SHA、含它的 manifest 摘要或可恢复它们的诊断字段。
+- `privacy-verify` 会重算授权决策，拒绝旧收据重放、合同交叉复用与任何被篡改的公开物/收据。
+
+当前 fixture 的稳定结论：
+
+| 快照 | 合同 | 最少遮格 | 遮格集合 | 说明 |
+| --- | --- | ---: | --- | --- |
+| `privacy-table-001` | `exact_margins` | 4 | R1C1、R1C3、R2C1、R2C3 | R1C3 不公开 |
+| `privacy-table-001` | `rounded_margins` | 2 | R1C1、R2C3 | R1C3 公开 |
+| `privacy-table-002`（更正 R1C2 4→7） | `exact_margins` | 4 | R1C1、R1C3、R2C1、R2C3 | 与 base 相同结论 |
+| `privacy-table-002` | `rounded_margins` | 3 | R1C1、R1C2、R2C3 | 原两格方案失效，必须重新搜索 |
+
+`lakemirror/privacy_preview.py` 仍是内部诊断，不能作为发布物；上述两条预览失败路径（精确边际下 A/F 唯一恢复、rounded 下原 CSV SHA 字典攻击）只用于内部复现。
+
+坏 SHA、重复/缺格、负数、非整数、边际不自洽、无保护方案、合同条款不符均阻断发布（退出码 2）。
+
+### 2.12 静态守卫
 
 ```bash
 python tools/check_file_length.py .

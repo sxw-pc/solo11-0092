@@ -144,6 +144,45 @@ class CliAcceptanceTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("error [", result.stderr)
 
+    def test_privacy_release_and_verify_roundtrip(self) -> None:
+        fixture = ROOT / "fixtures" / "privacy_table" / "contract.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            released = run_cli("privacy-release", "--contract", str(fixture),
+                               "--kind", "rounded_margins", "--out-dir", tmp)
+            self.assertEqual(released.returncode, 0, released.stderr)
+            payload = json.loads(released.stdout)
+            self.assertTrue(payload["public_artifact"]["publishable"])
+            self.assertNotIn(payload["internal_receipt"]["source_cells_sha256"],
+                             Path(payload["written"]["public_artifact"]).read_text(encoding="utf-8"))
+            verified = run_cli("privacy-verify", "--contract", str(fixture),
+                               "--kind", "rounded_margins",
+                               "--artifact", payload["written"]["public_artifact"],
+                               "--receipt", payload["written"]["internal_receipt"])
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertTrue(json.loads(verified.stdout)["verified"])
+            cross = run_cli("privacy-verify", "--contract", str(fixture),
+                            "--kind", "exact_margins",
+                            "--artifact", payload["written"]["public_artifact"],
+                            "--receipt", payload["written"]["internal_receipt"])
+            self.assertEqual(cross.returncode, 2)
+            self.assertIn("PRIVACY_RELEASE_BLOCKED", cross.stderr)
+            repeated = run_cli("privacy-release", "--contract", str(fixture),
+                               "--kind", "rounded_margins")
+            self.assertEqual(json.loads(repeated.stdout), {k: v for k, v in payload.items()
+                                                           if k != "written"})
+
+    def test_privacy_release_blocks_unsafe_fixtures(self) -> None:
+        for name in ("bad-sha-contract.json", "duplicate-contract.json", "missing-contract.json",
+                     "negative-contract.json", "bad-margins-contract.json",
+                     "unprotectable-contract.json", "swapped-contract.json"):
+            with self.subTest(fixture=name):
+                result = run_cli("privacy-release", "--contract",
+                                 str(ROOT / "fixtures" / "privacy_table" / name),
+                                 "--kind", "exact_margins")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("error [", result.stderr)
+                self.assertNotIn("public_artifact", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
