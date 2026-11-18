@@ -15,6 +15,9 @@ from .fixtures import generate_fixture
 from .ledger import Ledger
 from .plan_io import load_plan
 from .planner import build_plan
+from .provenance_evidence import inspect_report_origins
+from .provenance_receipts import write_release_artifacts
+from .provenance_release import adjudicate_report_release
 from .reconcile import scan_config
 from .report import build_report, render_report
 from .rollback import rollback_batch
@@ -170,6 +173,19 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_provenance_evidence(args: argparse.Namespace) -> int:
+    print(pretty_json(inspect_report_origins(args.manifest)), end="")
+    return 0
+
+
+def cmd_provenance_adjudicate(args: argparse.Namespace) -> int:
+    decision = adjudicate_report_release(args.manifest, contract_kinds=args.contract or None)
+    if args.out_dir:
+        decision["written"] = write_release_artifacts(args.manifest, decision, args.out_dir)
+    print(pretty_json(decision), end="")
+    return 0 if all(item["status"] == "allowed" for item in decision["publication_decisions"]) else 2
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m lakemirror", description="Local dual-replica lake consistency console")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -228,6 +244,16 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--db")
     serve.set_defaults(func=cmd_serve)
+
+    origin = sub.add_parser("provenance-evidence", help="verify synthetic report origin evidence")
+    origin.add_argument("--manifest", required=True)
+    origin.set_defaults(func=cmd_provenance_evidence)
+
+    release = sub.add_parser("provenance-adjudicate", help="decide report publication per contract")
+    release.add_argument("--manifest", required=True)
+    release.add_argument("--contract", action="append", choices=["reproducible_authorized", "origin_safe"])
+    release.add_argument("--out-dir", help="write allowed local instances and receipts")
+    release.set_defaults(func=cmd_provenance_adjudicate)
     return parser
 
 

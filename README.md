@@ -135,13 +135,43 @@ python -m lakemirror serve --workdir ./work --host 127.0.0.1 --port 8765
 - 页面与报告全内联，无脚本、无 CDN、无外部资源。
 - 路由仅：`/`、`/healthz`、`/api/runs.json`、`/api/batches.json`、`/api/run/<id>.json`、`/report/<run_id>.<json|md|html>`。
 
-### 2.10 运行全部测试
+### 2.10 合成湖报告来源裁决
+
+```bash
+python -m lakemirror provenance-evidence \
+  --manifest fixtures/report_provenance/manifest.json
+
+python -m lakemirror provenance-adjudicate \
+  --manifest fixtures/report_provenance/manifest.json \
+  --out-dir ./work/provenance-release
+```
+
+`provenance-evidence` 只核字节与结构：manifest/header/目标 SHA、每个有序片段的全部候选、片段内候选字节一致、跨片段禁配引用合法，以及 `header + 三个片段` 能逐字节重建目标；输出 `publication_decisions: null`。
+
+`provenance-adjudicate` 把“文件字节可重建”和“来源权利可用”分开裁决，并按来源 ID（而不是相同 SHA）保留候选身份：
+
+- `reproducible_authorized`：只要存在一条全部 `external_allowed`、无禁配、逐字节复现目标的组合，就生成**新报告实例**，并写出来源收据；该收据声明 `original_producer_receipt: false`。
+- `origin_safe`：必须证明**所有**与现有模糊回填证据相容的历史来源组合都可外发，才允许发布**原回填实例**；只找到一条干净链不够。存在受限历史候选或禁配历史组合时返回 `ORIGIN_NOT_PROVABLY_SAFE`，并附反例组合。
+- 两份合同可能对同一报告字节给出不同结论；退出码为 `0` 当且仅当所选合同全部放行，`2` 表示至少一份合同拒绝。
+- 坏 SHA、路径逃逸、缺少片段、重复候选 ID、片段内候选字节不一致、禁配引用不存在、同摘要来源替换、快照/合同错绑、收据冒充原件，都会阻断。
+
+默认 fixture 中，`reproducible_authorized` 选择 `name-public + value-public-b + footer-public` 并放行；简单按片段顺序取第一个 `external_allowed` 会选中被禁配的 `value-public-a`。`origin_safe` 因 `name-restricted` / `value-restricted` / `footer-restricted` 与禁配组合仍然逐字节相容而拒绝原件发布。正反例 fixture 位于 `fixtures/report_provenance/all_public/` 与 `fixtures/report_provenance/restricted_blocked/`。
+
+这是纯本地合成来源策略，不联网，也不做真实许可证解释。
+
+### 2.11 运行全部测试
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-### 2.11 静态守卫
+或：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider
+```
+
+### 2.12 静态守卫
 
 ```bash
 python tools/check_file_length.py .
@@ -215,8 +245,13 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 │   ├── ledger.py           # SQLite 台账
 │   ├── report.py           # JSON / Markdown 报告
 │   ├── report_html.py      # 自包含 HTML
+│   ├── provenance_evidence.py  # 合成来源证据与字节重建校验
+│   ├── provenance_chain.py     # 重建组合、禁配与收据来源解析
+│   ├── provenance_release.py   # 按合同裁决发布权利
+│   ├── provenance_receipts.py  # 收据复核与本地发布物
 │   ├── server.py           # 回环只读 HTTP 服务
 │   └── util.py             # 哈希、路径安全、原子写、行数统计
+├── fixtures/report_provenance/ # 合成报告来源正反例
 ├── tests/
 │   ├── support.py
 │   ├── test_*.py
