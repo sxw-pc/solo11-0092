@@ -1,0 +1,65 @@
+{
+  "table": "refunds",
+  "snapshot_id": "snap-threshold-0001",
+  "parent_snapshot_id": null,
+  "sequence": 1,
+  "created_at": "2024-01-01T00:00:00Z",
+  "schema": [
+    {
+      "name": "refund_id",
+      "type": "STRING",
+      "nullable": false
+    },
+    {
+      "name": "order_id",
+      "type": "STRING",
+      "nullable": false
+    },
+    {
+      "name": "amount",
+      "type": "DECIMAL",
+      "nullable": false
+    }
+  ],
+  "partition_spec": [
+    "dt"
+  ],
+  "files": [
+    {
+      "path": "refunds-known.csv",
+      "partition": "dt=2024-01-01",
+      "size": 35,
+      "row_count": 1,
+      "sha256": "c491de90d11f269dcf062428bd32050aa94ea0e18916ae92c12aee68ac1441a4"
+    },
+    {
+      "path": "refunds-missing.csv",
+      "partition": "dt=2024-01-01",
+      "size": 48,
+      "row_count": 2,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "stats": {
+    "missing_slots": [
+      {
+        "slot": "R1",
+        "eligible_order_ids": [
+          "O2",
+          "O4"
+        ],
+        "max_amount": 60
+      },
+      {
+        "slot": "R2",
+        "eligible_order_ids": [
+          "O2",
+          "O9"
+        ],
+        "max_amount": 60
+      }
+    ],
+    "one_refund_per_order": true,
+    "refund_never_exceeds_order_amount": true
+  }
+}

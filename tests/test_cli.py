@@ -144,6 +144,28 @@ class CliAcceptanceTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("error [", result.stderr)
 
+    def test_threshold_query_reports_both_contracts(self) -> None:
+        contract = ROOT / "fixtures/threshold_query/contract.json"
+        result = run_cli("threshold-query", "--contract", str(contract))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(output["query_decisions"]["exact_result"]["decision"], "unknown")
+        self.assertEqual(output["query_decisions"]["threshold_proof"]["decision"], "true")
+        self.assertEqual(output["net_bounds"]["lower"], 95)
+
+    def test_threshold_query_refuses_undecidable_consumption(self) -> None:
+        contract = ROOT / "fixtures/threshold_query/contract-undecidable.json"
+        result = run_cli("threshold-query", "--contract", str(contract))
+        self.assertEqual(result.returncode, 2)
+        output = json.loads(result.stdout)
+        self.assertFalse(output["query_decisions"]["threshold_proof"]["consumption_allowed"])
+
+    def test_threshold_query_rejects_untrusted_slot_metadata(self) -> None:
+        contract = ROOT / "fixtures/threshold_query/contract-untrusted-candidate.json"
+        result = run_cli("threshold-query", "--contract", str(contract))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("THRESHOLD_CONSTRAINT", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

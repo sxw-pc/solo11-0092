@@ -1,0 +1,6 @@
+{
+  "orders_manifest": "fixtures/threshold_query/orders-manifest.json",
+  "refunds_manifest": "fixtures/threshold_query/refunds-untrusted-candidate-manifest.json",
+  "threshold": 90,
+  "contracts": ["exact_result", "threshold_proof"]
+}

@@ -20,6 +20,7 @@ from .reconcile import scan_config
 from .report import build_report, render_report
 from .rollback import rollback_batch
 from .server import serve_forever
+from .threshold_evidence import query_threshold_evidence
 from .util import LakeMirrorError, pretty_json, utc_now, within, write_json
 from .verify import verify_batch
 
@@ -69,6 +70,18 @@ def cmd_fixtures(args: argparse.Namespace) -> int:
 def cmd_erasure_evidence(args: argparse.Namespace) -> int:
     print(pretty_json(inspect_erasure_manifest(args.manifest)), end="")
     return 0
+
+
+def cmd_threshold_query(args: argparse.Namespace) -> int:
+    result = query_threshold_evidence(args.contract)
+    print(pretty_json(result), end="")
+    if args.out:
+        path = Path(args.out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(pretty_json(result), encoding="utf-8")
+    decision = result["query_decisions"]["threshold_proof"]["consumption_allowed"]
+    exact = result["query_decisions"]["exact_result"]["consumption_allowed"]
+    return 0 if decision or exact else 2
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -188,6 +201,11 @@ def _parser() -> argparse.ArgumentParser:
     erasure = sub.add_parser("erasure-evidence", help="inspect local lake shard evidence")
     erasure.add_argument("--manifest", required=True)
     erasure.set_defaults(func=cmd_erasure_evidence)
+
+    threshold = sub.add_parser("threshold-query", help="answer bounded exact/threshold contracts")
+    threshold.add_argument("--contract", required=True)
+    threshold.add_argument("--out")
+    threshold.set_defaults(func=cmd_threshold_query)
 
     scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
     scan.add_argument("--config", required=True)
