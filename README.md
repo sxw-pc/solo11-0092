@@ -135,13 +135,27 @@ python -m lakemirror serve --workdir ./work --host 127.0.0.1 --port 8765
 - 页面与报告全内联，无脚本、无 CDN、无外部资源。
 - 路由仅：`/`、`/healthz`、`/api/runs.json`、`/api/batches.json`、`/api/run/<id>.json`、`/report/<run_id>.<json|md|html>`。
 
-### 2.10 运行全部测试
+### 2.10 本地快照分叉的双亲合并
+
+当同一祖先派生两个已核镜像分支时，`SNAPSHOT_FORK` 会阻断普通修复。可在独立沙箱内按两份事前授权合同评估并发布保留双亲血缘的权威合并快照：
+
+```bash
+# 核查分叉证据与两份合同的独立判定
+python -m lakemirror fork-evidence --contract fixtures/fork_merge/contract.json
+# file_strict：双侧改同一文件即阻断；field_disjoint：按 order_id 三方字段合并
+python -m lakemirror fork-merge --contract fixtures/fork_merge/contract.json \
+  --contract-name field_disjoint --sandbox ./work/fork-sandbox --execute
+```
+
+合并 CSV 与双亲 manifest 落盘并回读校验后才原子更新指针；同计划重放幂等，同 ID 异计划被拒。详见 `docs/OPERATIONS.md` 3.5 节。
+
+### 2.11 运行全部测试
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-### 2.11 静态守卫
+### 2.12 静态守卫
 
 ```bash
 python tools/check_file_length.py .
@@ -202,8 +216,14 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 │   ├── config.py           # 配置加载、路径与安全校验
 │   ├── config_types.py     # 配置值对象
 │   ├── fixtures.py         # 确定性离线 fixture
-│   ├── manifest.py         # 清单解析与结构校验
-│   ├── snapshot.py         # 快照链构建、滞后/分叉分析
+│   ├── manifest.py         # 清单解析、结构校验、双亲合并块与规范摘要
+│   ├── manifest_schema.py  # schema/分区/文件条目的纯解析
+│   ├── snapshot.py         # 快照链构建、分叉留存与合并解决判定
+│   ├── lag.py              # 链滞后/分叉冲突分类
+│   ├── fork_evidence.py    # 分叉合同核查（SHA/size/row_count 与真实 CSV）
+│   ├── fork_merge.py       # file_strict / field_disjoint 三方行合并
+│   ├── fork_publish.py     # 崩溃安全、可重放的双亲合并原子发布
+│   ├── fork_reconcile.py   # 新权威头 readable/blocked 裁决
 │   ├── schema.py           # schema 与分区规格漂移诊断
 │   ├── reconcile.py        # 文件/分区/schema/快照对账
 │   ├── reconcile_types.py  # Diff / ScanResult

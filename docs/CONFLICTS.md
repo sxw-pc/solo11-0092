@@ -120,9 +120,10 @@
 ### `SNAPSHOT_FORK` — critical
 
 - **判定**：同一父节点有多个子节点；或备副本最新快照 ID 不在主副本历史集合中。
-- **证据**：同滞后证据；备侧分叉还包含链问题列表。
+- **证据**：同滞后证据；备侧分叉还包含链问题列表与 `fork_events`。
 - **默认**：永不自动。
 - **计划**：`manual_review`。
+- **权威合并**：当两份事前授权合并合同之一允许、且 `fork-merge --execute` 在独立沙箱发布双亲合并快照后，链保留历史 `SNAPSHOT_FORK` 事实，但 `forked=false`、`fork_resolved=true`，不再重复产生顶层 `SNAPSHOT_FORK` 冲突。未被有效合并解决的分叉始终保持阻断。
 
 ### `POINTER_STALE` — medium
 
@@ -145,9 +146,12 @@
 | `SNAPSHOT_PARENT_MISSING` | 父快照 ID 不在链中。 |
 | `SNAPSHOT_SEQUENCE_REGRESSION` | 子快照序号不递增。 |
 | `MULTIPLE_ROOTS` | 出现多个无父节点。 |
-| `SNAPSHOT_FORK` | 某父节点有多个子节点。 |
+| `SNAPSHOT_FORK` | 某父节点有多个子节点；合并解决后仍保留为历史事实。 |
 | `DUPLICATE_SEQUENCE` | 多个快照共享同一序号。 |
 | `POINTER_TARGET_MISSING` | 指针指向不存在的快照。 |
+| `MERGE_PARENT_INVALID` | 双亲合并引用的快照缺失或不是两个互异分支。 |
+| `MERGE_LINEAGE_INVALID` | 双亲文件证据未覆盖合并快照的分区。 |
+| `MERGE_SEQUENCE_REGRESSION` | 合并快照序号未超过其双亲/祖先。 |
 
 ---
 

@@ -208,6 +208,41 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 
 SHA/行数差异使两张表都阻断自动化；计划全部人工。严格模式适合需要先人工确认内容差异的环境。
 
+### 3.5 本地快照分叉的权威双亲合并
+
+当同一祖先快照（如 `S0`）派生出两个已核镜像分支（`S1`、`S2`）时，普通对账会因 `SNAPSHOT_FORK` 阻断修复。湖镜对账台支持在**独立沙箱**内、依据两份事前授权合同评估并发布保留双亲血缘的权威合并快照，全程离线、主/备原快照保持只读。
+
+先核查分叉证据与两份合同的独立结论（合同之间不得互相借用判定）：
+
+```bash
+python -m lakemirror fork-evidence --contract fixtures/fork_merge/contract.json
+```
+
+两份合同语义：
+
+- `file_strict`：同一逻辑文件（按分区对齐）至多允许一侧变更；双侧改同一物理文件即阻断（`FILE_STRICT_BOTH_SIDES_CHANGED`）。
+- `field_disjoint`：按稳定业务键（`order_id`）做三方字段合并；同一字段仅一侧变化则保留该变化，两侧改成不同值、删除对更新、主键重复、缺文件、哈希失配、未知祖先均阻断。
+
+先 dry-run，确认 `would_write` 后再执行：
+
+```bash
+python -m lakemirror fork-merge --contract fixtures/fork_merge/contract.json \
+  --contract-name field_disjoint --sandbox ./work/fork-sandbox            # 计划，不落盘
+python -m lakemirror fork-merge --contract fixtures/fork_merge/contract.json \
+  --contract-name field_disjoint --sandbox ./work/fork-sandbox --execute # 原子发布
+```
+
+发布顺序为合并 CSV → 双亲合并 manifest → 当前头 manifest → 指针，全部走临时文件原子替换；指针最后更新，崩溃或重试不会让指针指向未核字节。计划指纹与快照 ID 记录在 `_merge_plans/`：同计划重放幂等（返回 `already_published`），同 ID 的不同计划被拒（`FORK_PLAN_CONFLICT`），不会产生两个不同的 `S3`。合并 manifest 的 `merge` 块保存 `primary`/`replica` 双亲与共同祖先的身份、manifest 摘要与文件证据；`parent_snapshot_id` 保持单亲兼容并指向第一双亲。
+
+发布后链上仍保留历史 `SNAPSHOT_FORK`，但 `forked=false`、`fork_resolved=true`。可用对账裁决确认新权威头可读：
+
+```python
+from lakemirror.reconcile import reconcile_fork_table
+reconcile_fork_table("./work/fork-sandbox/orders", "orders")  # decision: readable / blocked
+```
+
+阻断合同时不写任何字节，并返回带稳定指纹的阻断收据。
+
 ---
 
 ## 4. 备份与变更记录

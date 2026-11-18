@@ -1,0 +1,37 @@
+{
+  "table": "orders",
+  "snapshot_id": "S1",
+  "parent_snapshot_id": "S0",
+  "sequence": 2,
+  "created_at": "2024-01-02T00:00:00Z",
+  "schema": [
+    {
+      "name": "order_id",
+      "type": "STRING",
+      "nullable": false
+    },
+    {
+      "name": "amount",
+      "type": "LONG",
+      "nullable": false
+    },
+    {
+      "name": "status",
+      "type": "STRING",
+      "nullable": false
+    }
+  ],
+  "partition_spec": [
+    "dt"
+  ],
+  "files": [
+    {
+      "path": "orders-S1.csv",
+      "partition": "dt=2024-01-01",
+      "size": 46,
+      "row_count": 2,
+      "sha256": "dc2d7102da28c3cbaee571fdf31f0de65faa67c2124507338c759a9db512f185"
+    }
+  ],
+  "stats": {}
+}

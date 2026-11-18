@@ -1,4 +1,4 @@
-"""Parsing and structural validation of local lake table manifests."""
+"""Parsing, structural validation, and canonical serialization of local manifests."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .util import LakeMirrorError, is_valid_sha256, normalize_relpath
+from .util import LakeMirrorError, canonical_json, is_valid_sha256, sha256_text
 
 _ALLOWED_TOP = {
     "table",
@@ -19,7 +19,9 @@ _ALLOWED_TOP = {
     "partition_spec",
     "files",
     "stats",
+    "merge",
 }
+_MERGE_CONTRACTS = frozenset({"file_strict", "field_disjoint"})
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,40 @@ class FileEntry:
 
 
 @dataclass(frozen=True)
+class MergeRef:
+    """One parent of a dual-parent merge commit with byte-level file evidence."""
+
+    role: str
+    snapshot_id: str
+    manifest_sha256: str
+    files: tuple[FileEntry, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "role": self.role,
+            "snapshot_id": self.snapshot_id,
+            "manifest_sha256": self.manifest_sha256,
+            "files": [item.as_dict() for item in self.files],
+        }
+
+
+@dataclass(frozen=True)
+class MergeLineage:
+    """Dual-parent merge evidence; keeps both branches plus their common ancestor."""
+
+    contract: str
+    ancestor: MergeRef
+    parents: tuple[MergeRef, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "contract": self.contract,
+            "ancestor": self.ancestor.as_dict(),
+            "parents": [item.as_dict() for item in self.parents],
+        }
+
+
+@dataclass(frozen=True)
 class Manifest:
     table: str
     snapshot_id: str
@@ -99,6 +135,7 @@ class Manifest:
     stats: dict[str, Any] = field(default_factory=dict)
     source_path: str = "<memory>"
     issues: tuple[ManifestIssue, ...] = ()
+    merge: MergeLineage | None = None
 
     def file_map(self) -> dict[tuple[str, str], FileEntry]:
         return {(item.partition, item.path): item for item in self.files}
@@ -108,6 +145,14 @@ class Manifest:
 
     def total_bytes(self) -> int:
         return sum(item.size for item in self.files)
+
+    def is_merge(self) -> bool:
+        return self.merge is not None
+
+    def parent_ids(self) -> tuple[str, ...]:
+        if self.merge is not None:
+            return tuple(item.snapshot_id for item in self.merge.parents)
+        return (self.parent_snapshot_id,) if self.parent_snapshot_id is not None else ()
 
     def node(self) -> dict[str, Any]:
         return {
@@ -121,108 +166,47 @@ class Manifest:
         }
 
 
-def _issue(
-    source: str, json_path: str, field_name: str, code: str, message: str
-) -> ManifestIssue:
+def _issue(source: str, json_path: str, field_name: str, code: str, message: str) -> ManifestIssue:
     return ManifestIssue(code, message, source, json_path, field_name)
 
 
-def _parse_partition(value: Any, spec: tuple[str, ...], path: str) -> tuple[str | None, str]:
-    if not isinstance(value, str):
-        return None, "partition must be a string"
-    if not spec:
-        return (value, "") if value == "" else (None, "unpartitioned table must use empty partition")
-    if not value:
-        return None, "partition value is empty"
-    pairs: dict[str, str] = {}
-    for item in value.split(","):
-        if "=" not in item:
-            return None, f"partition component lacks '=': {item!r}"
-        key, raw = item.split("=", 1)
-        if not key or key in pairs:
-            return None, f"partition key is empty or duplicated: {key!r}"
-        if raw == "":
-            return None, f"partition value is empty for {key}"
-        pairs[key] = raw
-    if set(pairs) != set(spec):
-        return None, f"partition columns {sorted(pairs)} do not match spec {list(spec)}"
-    ordered = ",".join(f"{key}={pairs[key]}" for key in spec)
-    return ordered, ""
+def _merge_ref(raw: Any, source: str, where: str, role: str, spec: tuple[str, ...]) -> MergeRef:
+    if not isinstance(raw, dict) or set(raw) != {"role", "snapshot_id", "manifest_sha256", "files"}:
+        raise ManifestError(_issue(source, where, "merge", "MANIFEST_FIELD_TYPE", "merge ref must be an object with role, snapshot_id, manifest_sha256, files"))
+    if raw["role"] != role or not isinstance(raw["snapshot_id"], str) or not raw["snapshot_id"].strip():
+        raise ManifestError(_issue(source, where, "merge", "MANIFEST_FIELD_TYPE", f"merge ref {role} has invalid identity"))
+    if not isinstance(raw["manifest_sha256"], str) or not is_valid_sha256(raw["manifest_sha256"]):
+        raise ManifestError(_issue(source, where, "manifest_sha256", "MANIFEST_FIELD_TYPE", "merge ref manifest_sha256 must be 64 hex characters"))
+    entries, ref_issues = _parse_files(raw["files"], source, spec, f"{where}.files")
+    if ref_issues:
+        raise ManifestError(list(ref_issues))
+    return MergeRef(role, raw["snapshot_id"].strip(), raw["manifest_sha256"].lower(), entries)
 
 
-def _schema(raw: Any, source: str) -> tuple[Field, ...]:
-    if not isinstance(raw, list) or not raw:
-        raise ManifestError(_issue(source, "$.schema", "schema", "MANIFEST_FIELD_TYPE", "schema must be a non-empty array"))
-    fields: list[Field] = []
-    names: set[str] = set()
-    for index, item in enumerate(raw):
-        where = f"$.schema[{index}]"
-        if not isinstance(item, dict):
-            raise ManifestError(_issue(source, where, "schema", "MANIFEST_FIELD_TYPE", "field must be an object"))
-        if set(item) - {"name", "type", "nullable"}:
-            raise ManifestError(_issue(source, where, "schema", "MANIFEST_UNKNOWN_FIELD", "unknown schema field key"))
-        name, kind, nullable = item.get("name"), item.get("type"), item.get("nullable")
-        if not isinstance(name, str) or not name.strip():
-            raise ManifestError(_issue(source, where, "name", "MANIFEST_FIELD_TYPE", "name must be a string"))
-        if not isinstance(kind, str) or not kind.strip():
-            raise ManifestError(_issue(source, where, "type", "MANIFEST_FIELD_TYPE", "type must be a string"))
-        if not isinstance(nullable, bool):
-            raise ManifestError(_issue(source, where, "nullable", "MANIFEST_FIELD_TYPE", "nullable must be boolean"))
-        if name in names:
-            raise ManifestError(_issue(source, where, "name", "DUPLICATE_SCHEMA_FIELD", f"duplicate schema field: {name}"))
-        names.add(name)
-        fields.append(Field(name=name.strip(), type=kind.strip().upper(), nullable=nullable))
-    return tuple(fields)
-
-
-def _partition_spec(raw: Any, source: str) -> PartitionSpec:
-    if not isinstance(raw, list) or not all(isinstance(item, str) and item for item in raw):
-        raise ManifestError(_issue(source, "$.partition_spec", "partition_spec", "MANIFEST_FIELD_TYPE", "partition_spec must be an array of strings"))
-    if len(set(raw)) != len(raw):
-        raise ManifestError(_issue(source, "$.partition_spec", "partition_spec", "MANIFEST_FIELD_TYPE", "partition_spec contains duplicates"))
-    return PartitionSpec(tuple(raw))
-
-
-def _files(
-    raw: Any, source: str, spec: tuple[str, ...]
-) -> tuple[tuple[FileEntry, ...], tuple[ManifestIssue, ...]]:
-    if not isinstance(raw, list):
-        raise ManifestError(_issue(source, "$.files", "files", "MANIFEST_FIELD_TYPE", "files must be an array"))
-    files: list[FileEntry] = []
-    issues: list[ManifestIssue] = []
-    seen: dict[str, str] = {}
-    for index, item in enumerate(raw):
-        where = f"$.files[{index}]"
-        if not isinstance(item, dict):
-            raise ManifestError(_issue(source, where, "files", "MANIFEST_FIELD_TYPE", "file entry must be an object"))
-        if set(item) - {"path", "partition", "size", "row_count", "sha256"}:
-            raise ManifestError(_issue(source, where, "files", "MANIFEST_UNKNOWN_FIELD", "unknown file field"))
-        raw_path = item.get("path")
-        if not isinstance(raw_path, str):
-            raise ManifestError(_issue(source, where, "path", "MANIFEST_FIELD_TYPE", "path must be a string"))
-        try:
-            path = normalize_relpath(raw_path)
-        except LakeMirrorError as exc:
-            issues.append(_issue(source, where, "path", "PATH_OUTSIDE_ROOT", str(exc)))
-            continue
-        size, rows, digest = item.get("size"), item.get("row_count"), item.get("sha256")
-        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
-            raise ManifestError(_issue(source, where, "size", "MANIFEST_FIELD_TYPE", "size must be a non-negative integer"))
-        if not isinstance(rows, int) or isinstance(rows, bool) or rows < 0:
-            raise ManifestError(_issue(source, where, "row_count", "MANIFEST_FIELD_TYPE", "row_count must be a non-negative integer"))
-        if not isinstance(digest, str) or not is_valid_sha256(digest):
-            raise ManifestError(_issue(source, where, "sha256", "MANIFEST_FIELD_TYPE", "sha256 must be 64 hex characters"))
-        partition, error = _parse_partition(item.get("partition"), spec, path)
-        if partition is None:
-            issues.append(_issue(source, where, "partition", "INVALID_PARTITION_VALUE", error))
-            continue
-        if path in seen or path.casefold() in seen:
-            issues.append(_issue(source, where, "path", "DUPLICATE_LOGICAL_PATH", f"duplicate logical path: {path}"))
-            continue
-        seen[path] = path
-        seen[path.casefold()] = path
-        files.append(FileEntry(path, partition, size, rows, digest.lower()))
-    return tuple(files), tuple(issues)
+def _merge_lineage(raw: Any, source: str, parent: str | None, spec: tuple[str, ...]) -> MergeLineage:
+    where = "$.merge"
+    if not isinstance(raw, dict) or set(raw) != {"contract", "ancestor", "parents"}:
+        raise ManifestError(_issue(source, where, "merge", "MANIFEST_FIELD_TYPE", "merge must contain contract, ancestor, parents"))
+    contract = raw["contract"]
+    if not isinstance(contract, str) or contract not in _MERGE_CONTRACTS:
+        raise ManifestError(_issue(source, f"{where}.contract", "contract", "MANIFEST_FIELD_TYPE", "merge contract must be file_strict or field_disjoint"))
+    ancestor = _merge_ref(raw["ancestor"], source, f"{where}.ancestor", "ancestor", spec)
+    parents_raw = raw["parents"]
+    if not isinstance(parents_raw, list) or len(parents_raw) != 2:
+        raise ManifestError(_issue(source, f"{where}.parents", "parents", "MANIFEST_FIELD_TYPE", "merge parents must contain exactly two refs"))
+    roles = [item.get("role") if isinstance(item, dict) else None for item in parents_raw]
+    if roles != ["primary", "replica"]:
+        raise ManifestError(_issue(source, f"{where}.parents", "parents", "MANIFEST_FIELD_TYPE", "merge parent roles must be primary then replica"))
+    parents = tuple(
+        _merge_ref(item, source, f"{where}.parents[{index}]", role, spec)
+        for index, (item, role) in enumerate(zip(parents_raw, roles))
+    )
+    ids = [item.snapshot_id for item in parents]
+    if len(set(ids)) != 2 or ancestor.snapshot_id in ids:
+        raise ManifestError(_issue(source, f"{where}.parents", "parents", "MANIFEST_FIELD_TYPE", "merge parents must be two distinct snapshots different from ancestor"))
+    if parent is None or parent != parents[0].snapshot_id:
+        raise ManifestError(_issue(source, "$.parent_snapshot_id", "parent_snapshot_id", "MANIFEST_FIELD_TYPE", "merge commit parent_snapshot_id must equal the first merge parent"))
+    return MergeLineage(contract, ancestor, parents)
 
 
 def parse_manifest(data: Any, source: str = "<memory>", strict: bool = False) -> Manifest:
@@ -231,15 +215,11 @@ def parse_manifest(data: Any, source: str = "<memory>", strict: bool = False) ->
     unknown = sorted(set(data) - _ALLOWED_TOP)
     if unknown:
         raise ManifestError(_issue(source, "$", "manifest", "MANIFEST_UNKNOWN_FIELD", f"unknown field(s): {', '.join(unknown)}"))
-    required = _ALLOWED_TOP - {"stats"}
+    required = _ALLOWED_TOP - {"stats", "merge"}
     missing = sorted(required - set(data))
     if missing:
         raise ManifestError(_issue(source, "$", missing[0], "MANIFEST_FIELD_MISSING", f"missing field(s): {', '.join(missing)}"))
-    table = data["table"]
-    snapshot = data["snapshot_id"]
-    parent = data["parent_snapshot_id"]
-    sequence = data["sequence"]
-    created = data["created_at"]
+    table, snapshot, parent, sequence, created = (data["table"], data["snapshot_id"], data["parent_snapshot_id"], data["sequence"], data["created_at"])
     if not isinstance(table, str) or not table.strip():
         raise ManifestError(_issue(source, "$.table", "table", "MANIFEST_FIELD_TYPE", "table must be a non-empty string"))
     if not isinstance(snapshot, str) or not snapshot.strip():
@@ -253,15 +233,17 @@ def parse_manifest(data: Any, source: str = "<memory>", strict: bool = False) ->
     stats = data.get("stats", {})
     if not isinstance(stats, dict):
         raise ManifestError(_issue(source, "$.stats", "stats", "MANIFEST_FIELD_TYPE", "stats must be an object"))
-    fields = _schema(data["schema"], source)
-    spec = _partition_spec(data["partition_spec"], source)
-    file_entries, issues = _files(data["files"], source, spec.columns)
+    parent_value = parent.strip() if isinstance(parent, str) else None
+    fields = _parse_schema(data["schema"], source)
+    spec = _parse_partition_spec(data["partition_spec"], source)
+    merge = _merge_lineage(data["merge"], source, parent_value, spec.columns) if "merge" in data else None
+    file_entries, issues = _parse_files(data["files"], source, spec.columns)
     if strict and issues:
         raise ManifestError(list(issues))
     return Manifest(
         table=table.strip(),
         snapshot_id=snapshot.strip(),
-        parent_snapshot_id=parent.strip() if isinstance(parent, str) else None,
+        parent_snapshot_id=parent_value,
         sequence=sequence,
         created_at=created.strip(),
         fields=fields,
@@ -270,7 +252,35 @@ def parse_manifest(data: Any, source: str = "<memory>", strict: bool = False) ->
         stats=stats,
         source_path=source,
         issues=issues,
+        merge=merge,
     )
+
+
+def canonical_manifest_doc(manifest: Manifest) -> dict[str, Any]:
+    """Return the byte-stable document shape used for manifests and digests."""
+
+    doc: dict[str, Any] = {
+        "table": manifest.table,
+        "snapshot_id": manifest.snapshot_id,
+        "parent_snapshot_id": manifest.parent_snapshot_id,
+        "sequence": manifest.sequence,
+        "created_at": manifest.created_at,
+        "schema": [item.as_dict() for item in manifest.fields],
+        "partition_spec": manifest.partition_spec.as_dict(),
+        "files": [item.as_dict() for item in manifest.files],
+        "stats": manifest.stats,
+    }
+    if manifest.merge is not None:
+        doc["merge"] = manifest.merge.as_dict()
+    return doc
+
+
+def manifest_canonical_text(manifest: Manifest) -> str:
+    return json.dumps(canonical_manifest_doc(manifest), sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
+def manifest_digest(manifest: Manifest) -> str:
+    return sha256_text(canonical_json(canonical_manifest_doc(manifest)))
 
 
 def load_manifest(path: str | Path, strict: bool = False) -> Manifest:
@@ -282,3 +292,9 @@ def load_manifest(path: str | Path, strict: bool = False) -> Manifest:
     except json.JSONDecodeError as exc:
         raise ManifestError(_issue(source, f"line {exc.lineno}, column {exc.colno}", "manifest", "MANIFEST_INVALID_JSON", exc.msg)) from exc
     return parse_manifest(raw, source=source, strict=strict)
+
+
+# Imported late to keep the dataclasses above available during module import.
+from .manifest_schema import parse_files as _parse_files  # noqa: E402
+from .manifest_schema import parse_partition_spec as _parse_partition_spec  # noqa: E402
+from .manifest_schema import parse_schema as _parse_schema  # noqa: E402

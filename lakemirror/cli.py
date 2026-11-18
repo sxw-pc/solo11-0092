@@ -13,6 +13,8 @@ from .config import Config, load_config
 from .executor import execute_plan
 from .erasure_evidence import inspect_erasure_manifest
 from .fixtures import generate_fixture
+from .fork_evidence import inspect_fork_contract
+from .fork_publish import publish_fork_merge
 from .ledger import Ledger
 from .plan_io import load_plan
 from .planner import build_plan
@@ -69,6 +71,23 @@ def cmd_fixtures(args: argparse.Namespace) -> int:
 def cmd_erasure_evidence(args: argparse.Namespace) -> int:
     print(pretty_json(inspect_erasure_manifest(args.manifest)), end="")
     return 0
+
+
+def cmd_fork_evidence(args: argparse.Namespace) -> int:
+    print(pretty_json(inspect_fork_contract(args.contract)), end="")
+    return 0
+
+
+def cmd_fork_merge(args: argparse.Namespace) -> int:
+    result = publish_fork_merge(
+        args.contract,
+        args.contract_name,
+        args.sandbox,
+        snapshot_id=args.snapshot_id,
+        execute=args.execute,
+    )
+    print(pretty_json(result), end="")
+    return 0 if result["status"] in {"planned", "published", "already_published"} else 2
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -188,6 +207,18 @@ def _parser() -> argparse.ArgumentParser:
     erasure = sub.add_parser("erasure-evidence", help="inspect local lake shard evidence")
     erasure.add_argument("--manifest", required=True)
     erasure.set_defaults(func=cmd_erasure_evidence)
+
+    fork_evidence_parser = sub.add_parser("fork-evidence", help="inspect a forked snapshot contract and merge verdicts")
+    fork_evidence_parser.add_argument("--contract", required=True)
+    fork_evidence_parser.set_defaults(func=cmd_fork_evidence)
+
+    fork_merge = sub.add_parser("fork-merge", help="evaluate and atomically publish a dual-parent fork merge in a sandbox")
+    fork_merge.add_argument("--contract", required=True)
+    fork_merge.add_argument("--contract-name", required=True, choices=["file_strict", "field_disjoint"])
+    fork_merge.add_argument("--sandbox", required=True)
+    fork_merge.add_argument("--snapshot-id", default="S3")
+    fork_merge.add_argument("--execute", action="store_true")
+    fork_merge.set_defaults(func=cmd_fork_merge)
 
     scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
     scan.add_argument("--config", required=True)

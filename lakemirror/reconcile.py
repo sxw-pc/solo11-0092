@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .config import Config, IgnoreRule
+from .fork_reconcile import reconcile_fork_head
 from .manifest import FileEntry, Manifest, ManifestIssue, load_manifest
 from .schema import SchemaFinding, compare_schemas
-from .snapshot import LagFinding, SnapshotChain, analyze_chains, load_chain
+from .lag import LagFinding, analyze_chains
+from .snapshot import SnapshotChain, load_chain
 from .reconcile_types import Diff, ScanResult
 from .util import SEVERITY, canonical_json, fingerprint
 
@@ -274,3 +276,9 @@ def scan_config(config: Config, scan_id: str | None = None) -> ScanResult:
         }
     )
     return ScanResult(scan_id, config, diffs, tuple(chains), table_stats, stats, tuple(warnings))
+
+
+def reconcile_fork_table(table_dir: str | Path, table: str) -> dict[str, Any]:
+    """Public reconcile entry: readable/blocked verdict for a fork merge head."""
+
+    return reconcile_fork_head(table_dir, table)

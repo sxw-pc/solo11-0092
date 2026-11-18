@@ -7,9 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lakemirror.lag import analyze_chains
 from lakemirror.snapshot import (
     SnapshotError,
-    analyze_chains,
     build_chain,
     load_chain,
     read_pointer,
