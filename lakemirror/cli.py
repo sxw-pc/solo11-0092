@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .audit_policy import CONTRACTS, execute_draw, publish_receipt, verify_receipt
 from .config import Config, load_config
 from .executor import execute_plan
 from .fixtures import generate_fixture
@@ -170,6 +171,24 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit_policy(args: argparse.Namespace) -> int:
+    receipt = publish_receipt(args.calibration, args.contract, args.window, args.seed, args.out)
+    print(pretty_json(receipt), end="")
+    return 0
+
+
+def cmd_audit_draw(args: argparse.Namespace) -> int:
+    receipt = execute_draw(args.receipt, args.calibration, args.seed)
+    print(pretty_json(receipt), end="")
+    return 0
+
+
+def cmd_audit_verify(args: argparse.Namespace) -> int:
+    result = verify_receipt(args.receipt, args.calibration, require_contract=args.contract)
+    print(pretty_json(result), end="")
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m lakemirror", description="Local dual-replica lake consistency console")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -228,6 +247,26 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--db")
     serve.set_defaults(func=cmd_serve)
+
+    audit = sub.add_parser("audit-policy", help="publish an ex-ante one-check audit policy for a window")
+    audit.add_argument("--calibration", required=True)
+    audit.add_argument("--contract", required=True, choices=list(CONTRACTS))
+    audit.add_argument("--window", required=True)
+    audit.add_argument("--seed", required=True)
+    audit.add_argument("--out", required=True)
+    audit.set_defaults(func=cmd_audit_policy)
+
+    draw = sub.add_parser("audit-draw", help="reveal the seed and draw the single audit check")
+    draw.add_argument("--receipt", required=True)
+    draw.add_argument("--calibration", required=True)
+    draw.add_argument("--seed", required=True)
+    draw.set_defaults(func=cmd_audit_draw)
+
+    review = sub.add_parser("audit-verify", help="verify an audit receipt against current calibration")
+    review.add_argument("--receipt", required=True)
+    review.add_argument("--calibration", required=True)
+    review.add_argument("--contract")
+    review.set_defaults(func=cmd_audit_verify)
     return parser
 
 

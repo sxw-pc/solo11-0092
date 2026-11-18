@@ -246,6 +246,7 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 - [配置参考](docs/CONFIG.md)
 - [冲突码与判定](docs/CONFLICTS.md)
 - [操作手册](docs/OPERATIONS.md)
+- [审计核查策略合同](docs/AUDIT_POLICY.md)
 
 ---
 
