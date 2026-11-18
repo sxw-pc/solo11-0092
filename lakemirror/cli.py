@@ -12,6 +12,7 @@ from typing import Any
 from .config import Config, load_config
 from .executor import execute_plan
 from .erasure_evidence import inspect_erasure_manifest
+from .erasure_recovery import CONTRACTS, evaluate_recovery, write_recovery
 from .fixtures import generate_fixture
 from .ledger import Ledger
 from .plan_io import load_plan
@@ -69,6 +70,20 @@ def cmd_fixtures(args: argparse.Namespace) -> int:
 def cmd_erasure_evidence(args: argparse.Namespace) -> int:
     print(pretty_json(inspect_erasure_manifest(args.manifest)), end="")
     return 0
+
+
+def cmd_erasure_recover(args: argparse.Namespace) -> int:
+    report = evaluate_recovery(args.manifest)
+    if args.output_dir:
+        write = write_recovery(args.manifest, args.output_dir, args.contract)
+        report["write"] = write
+        available = write["available_for_verification"]
+    else:
+        decision = next(item for item in report["contract_decisions"]
+                        if item["contract"] == args.contract)
+        available = decision["available_for_verification"]
+    print(pretty_json(report), end="")
+    return 0 if available else 2
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -188,6 +203,12 @@ def _parser() -> argparse.ArgumentParser:
     erasure = sub.add_parser("erasure-evidence", help="inspect local lake shard evidence")
     erasure.add_argument("--manifest", required=True)
     erasure.set_defaults(func=cmd_erasure_evidence)
+
+    recover = sub.add_parser("erasure-recover", help="recover one orders file from erasure shards")
+    recover.add_argument("--manifest", required=True)
+    recover.add_argument("--contract", required=True, choices=list(CONTRACTS))
+    recover.add_argument("--output-dir", help="controlled local directory for the recovered file")
+    recover.set_defaults(func=cmd_erasure_recover)
 
     scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
     scan.add_argument("--config", required=True)

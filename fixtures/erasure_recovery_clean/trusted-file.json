@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "table": "orders",
+  "snapshot_id": "snap-erasure-0001",
+  "source_file_rel": "data/dt=2024-01-01/part-erasure.csv",
+  "file_sha256": "92372ae197608fc4c9ab9bb9704d8afe050555a99de863117dc8527e77d81b98",
+  "original_size": 64
+}

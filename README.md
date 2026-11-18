@@ -150,6 +150,30 @@ python tools/check_no_network.py lakemirror
 
 第一条检查所有 Python 源文件不超过 300 行；第二条检查运行时代码没有外部网络客户端或内嵌外部 URL。
 
+### 2.12 纠删碎片恢复（单个 orders 分区文件）
+
+当完整文件已不可读、只剩纠删碎片时，普通复制/替换修复无法工作。`erasure-evidence` 只核实碎片与独立可信文件证据、明确给出 `recovered_bytes=null`；`erasure-recover` 在此基础上做有界 5 片（GF(256)、多项式 `0x11b`、3 数据 + 2 校验、固定生成矩阵）重构，并按两份事先声明的合同分别给出文件可用性裁决：
+
+```bash
+# 只看证据：表/快照/分区相对路径、各碎片 SHA、可信文件 SHA，不产出字节
+python -m lakemirror erasure-evidence --manifest fixtures/erasure_demo/manifest.json
+# 两份合同的候选/冲突证据与恢复裁决（不落盘）
+python -m lakemirror erasure-recover --manifest fixtures/erasure_demo/manifest.json \
+    --contract digest_quorum
+# 仅在合同授权时把恢复文件写入受控输出目录
+python -m lakemirror erasure-recover --manifest fixtures/erasure_demo/manifest.json \
+    --contract digest_quorum --output-dir ./work/recovered
+```
+
+合同语义（同一碎片与文件级证据，结论可以不同，但都不会发布错误字节）：
+
+- `strict_all_shards`：允许缺片后重构，但所有当前可见且通过本片 SHA 的碎片必须能被同一个编码文件解释；任一碎片与该编码关系冲突即阻断（demo 中 shard4 首字节实测 0、编码约束应为 1，故阻断并给出冲突证据）。
+- `digest_quorum`：允许隔离矛盾碎片，前提是存在唯一重构字节流，且与独立 `trusted-file.json` 的完整文件 SHA、原始长度、orders CSV 列结构（`order_id,customer_id,amount,dt`）全部一致；demo 由 0/1/3 三片恢复缺失的 2 号数据片、隔离 4 号并授权输出。
+
+防误发规则：枚举可见碎片的全部三片组合作为候选并去重，不会任取三片成功解码就发布；碎片自身 SHA 匹配只代表本片完整，不代表编码关系正确；不同候选字节都获权威证据（`TRUSTED_DIGEST_AMBIGUOUS`）、无候选匹配可信 SHA（`NO_CANDIDATE_MATCHES_TRUSTED_DIGEST`）、可信文件身份与碎片身份不一致（`ERASURE_TRUST`）、列结构不符或隔离后不足三片均阻断。碎片登记 SHA 永远不会被提升为文件级权威，文件级权威只来自独立的 `trusted-file.json`。
+
+写入规则：仅授权结果可写到 `--output-dir`，按 `source_file_rel` 相对路径落盘并做写后 SHA 复核；输出目录不得与证据 fixture 重叠（不可覆盖原 fixture），路径经过与执行器相同的 `safe_join` 边界校验；目标已存在同字节文件时幂等跳过，存在不同字节文件时拒绝覆盖。重复执行产出相同字节，改动任一碎片字节、可信 SHA 或 orders 身份都会改变裁决或直接拒绝旧结果。
+
 ---
 
 ## 3. 四个内置场景
@@ -192,6 +216,9 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 │   ├── drift_basic/scenario.json
 │   ├── schema_drift/scenario.json
 │   └── snapshot_lag/scenario.json
+├── fixtures/erasure_demo/                  # 含冲突碎片的纠删证据（recovered_bytes=null）
+├── fixtures/erasure_recovery_clean/        # 正样本：两份合同均可恢复
+├── fixtures/erasure_recovery_bad_digest/   # 反样本：可信 SHA 不匹配，双合同阻断
 ├── docs/
 │   ├── CONFIG.md
 │   ├── CONFLICTS.md
@@ -207,6 +234,8 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 │   ├── schema.py           # schema 与分区规格漂移诊断
 │   ├── reconcile.py        # 文件/分区/schema/快照对账
 │   ├── reconcile_types.py  # Diff / ScanResult
+│   ├── erasure_evidence.py # 纠删碎片证据核实（不重构字节）
+│   ├── erasure_recovery.py # GF(256) 碎片重构、双合同裁决、受控落盘
 │   ├── planner.py          # 确定性修复计划
 │   ├── plan_io.py          # 计划指纹与结构校验
 │   ├── executor.py         # dry-run / 执行 / 备份 / 台账
@@ -223,7 +252,8 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 │   └── golden/report.{json,md,html}
 └── tools/
     ├── check_file_length.py
-    └── check_no_network.py
+    ├── check_no_network.py
+    └── erasure/generate_fixtures.py  # 离线再生成纠删恢复正反样本
 ```
 
 ---
@@ -300,6 +330,7 @@ work/backups/<batch_id>/
 - 报告结构、JSON/Markdown/HTML 黄金文件、自包含与 XSS 转义、确定性。
 - CLI 全流程、fixture 可复现、错误码与退出码。
 - 回环服务页面、API、报告下载、HEAD、Host 校验、请求体上限、写方法拒绝、构造参数防护。
+- 纠删恢复：GF(256) 矩阵求逆与逐字节编码核对、全部三片候选枚举去重、冲突首字节证据、strict/quorum 双合同裁决、可信 SHA/长度/orders 列结构验真、矛盾碎片隔离、碎片改字节/可信 SHA 改/身份漂移的结论变化、受控落盘、幂等重跑、fixture 重叠与异文件覆盖拒绝、CLI 退出码。
 - 两个静态守卫工具自身与仓库策略。
 
 运行：
@@ -322,6 +353,8 @@ python -m unittest discover -s tests -v
 - [x] `rollback --execute` 逆序恢复，复扫回到执行前差异。
 - [x] `report` 输出 JSON/Markdown/HTML，HTML 自包含。
 - [x] `serve` 仅回环、只读、有安全头与请求体上限。
+- [x] `erasure-recover` 在同一碎片证据上给出 strict 阻断 / quorum 可恢复的不同裁决，且都不发布错误字节。
+- [x] 恢复文件只在合同授权后写入受控输出目录，写后 SHA 与独立可信证据一致，重跑幂等。
 - [x] 全部 Python 文件不超过 300 行。
 - [x] 运行时代码无外部网络客户端、无外部资源引用。
 - [x] 所有 fixture 主体、表名、分区、路径均为合成数据。
@@ -337,6 +370,7 @@ python -m unittest discover -s tests -v
 - 计划中的删除必须显式开启 `allow_delete`；否则相关表整体进入人工复核。
 - 备份会占用本地磁盘；批次清理需由运维在保留期后手工完成。
 - 回滚依赖批次目录中的 `changes.json` 与备份文件完整存在。
+- 纠删恢复只支持固定合同 `gf256-vandermonde-3-of-5` 的有界 5 片、单个 orders 分区 CSV；不是通用分布式纠删服务，不接入远端存储或密钥设施。
 
 ---
 
