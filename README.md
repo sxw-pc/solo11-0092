@@ -179,6 +179,30 @@ python -m lakemirror row-contract --workdir ./row-work --contract ./row-work/row
 
 `late_arrival` 的同一组订单和事件文件在 10:00 的消费结论为 `pending`，在 13:00 为 `ready`：`pay` 事件 09:00 生效，却在 12:00 才被观察到。`orphan`、`invalid_timeline`、`state_conflict` 和 `duplicate_order` 是业务矛盾，结论为 `blocked`；`corrupt_file` 缺少可信物理证据，结论为 `unknown`，不能误报为业务矛盾。另有 `consistent` 正例。判定同时核对快照指针、清单身份、文件事实、订单键和事件生命周期；无网络、无 SQL 引擎、不修改湖表或台账。
 
+### 2.13 商家结算授权与已付责任清算
+
+`settle` 是唯一允许记录商家实付的入口。行合同判定与网关凭证仍是只读输入：订单 `state=paid`、计划净额或尚未观察到的证据都不能冒充商家已经收到的钱。每份合同的实付身份由 `order_id + merchant_id + currency + contract_id` 派生，写入 workdir 内的 `settlement_ledger.json`（payouts / liabilities / journal 三段，原子落盘），重复执行同一合同/时点或跨时点重跑都保持一次实付身份与可解释轨迹。
+
+```bash
+python -m lakemirror gateway-fixture --scenario advance_then_dispute --workdir ./settle-work
+python -m lakemirror settle --workdir ./settle-work \
+  --receipts ./settle-work/gateway_receipts.json --terms ./settle-work/settlement_terms.json \
+  --contract ./settle-work/row_contract.json --as-of 2024-03-01T10:00:00Z
+python -m lakemirror settle --workdir ./settle-work \
+  --receipts ./settle-work/gateway_receipts.json --terms ./settle-work/settlement_terms.json \
+  --contract ./settle-work/row_contract.json --as-of 2024-03-01T13:00:00Z
+```
+
+同一 `advance_then_dispute` 序列上两条均获条款授权的正确业务路线：
+
+- **audit（dual_replica）**：须主、备副本订单证据都 `verified` 才授权。10:00 备副本 `pay` 迟到为 `pending`，实付为 0（`held`）；13:00 双副本 `verified` 且 G101 拒付可见、网关净收款 7000，发放终局实付 7000。
+- **liquidity（primary_gateway）**：主副本 `verified` 加独立可见 capture 即可临时授权。10:00 按 `advance_bps=8000` 至多垫付 8000，并标明 `provisional` 临时垫付；13:00 不会把新算出的 7000 再发一次，既有 8000 与净收款 7000 之间的 1000 差额按 `loss_bearer` 记账。
+
+差额责任：`loss_bearer=platform` 时记平台损失（`SETTLEMENT_PLATFORM_LOSS`），绝不伪作商家欠款；条款改为 `merchant` 后重跑，旧责任标 `reattributed`、追加商家追偿义务（`SETTLEMENT_MERCHANT_RECOVERY`），但既有实付的身份与金额永不改写。临时垫付在最终证据对账后转为 `cleared`（金额不变）。
+
+准入阻断：网关凭证无效、订单/事件物理证据 `unknown`、订单与凭证身份不一致时不发新款；若该合同已有实付，则保留事实并标记 `under_review` 或追偿，不删除历史制造零风险。两种合同都不会把 `pending` 写成 `verified`。
+
+
 ---
 
 ## 3. 四个内置场景
@@ -228,6 +252,11 @@ python -m lakemirror scan --config configs/reconcile-strict.json --workdir ./wor
 ├── lakemirror/
 │   ├── __init__.py / __main__.py
 │   ├── cli.py              # 子命令与退出码
+│   ├── row_fixture.py        # 确定性离线订单/事件行 fixture
+│   ├── row_contract.py       # as-of 订单生命周期合同（只读判定）
+│   ├── gateway_fixture.py    # mock 网关 capture/chargeback 与条款 fixture
+│   ├── gateway_evidence.py   # 网关凭证有界摄入（只读，不授权付款）
+│   ├── settlement.py         # 商家结算授权、实付/责任持久台账与清算
 │   ├── config.py           # 配置加载、路径与安全校验
 │   ├── config_types.py     # 配置值对象
 │   ├── fixtures.py         # 确定性离线 fixture
@@ -329,6 +358,7 @@ work/backups/<batch_id>/
 - 报告结构、JSON/Markdown/HTML 黄金文件、自包含与 XSS 转义、确定性。
 - CLI 全流程、fixture 可复现、错误码与退出码。
 - 回环服务页面、API、报告下载、HEAD、Host 校验、请求体上限、写方法拒绝、构造参数防护。
+- 结算授权与清算：双副本 audit 10:00 暂缓 / 13:00 首付 7000、liquidity 临时垫付 8000 与拒付晚到后 1000 平台责任、平台/商家责任切换不改写实付、网关无效与行证据 unknown 阻断新发款并把已实付标待核、无可见 capture 暂缓、同时点与跨时点幂等续算保持单一实付身份。
 - 两个静态守卫工具自身与仓库策略。
 
 运行：
@@ -351,6 +381,7 @@ python -m unittest discover -s tests -v
 - [x] `rollback --execute` 逆序恢复，复扫回到执行前差异。
 - [x] `report` 输出 JSON/Markdown/HTML，HTML 自包含。
 - [x] `serve` 仅回环、只读、有安全头与请求体上限。
+- [x] `settle` 在同一订单/凭证输入上分别产出 audit 实收 7000 与 liquidity 实收 8000 + 平台损失 1000，且跨时点重跑保持一次实付身份。
 - [x] 全部 Python 文件不超过 300 行。
 - [x] 运行时代码无外部网络客户端、无外部资源引用。
 - [x] 所有 fixture 主体、表名、分区、路径均为合成数据。

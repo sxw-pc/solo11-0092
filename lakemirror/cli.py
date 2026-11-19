@@ -23,6 +23,7 @@ from .reconcile import scan_config
 from .report import build_report, render_report
 from .rollback import rollback_batch
 from .server import serve_forever
+from .settlement import run_settlement
 from .util import LakeMirrorError, pretty_json, utc_now, within, write_json
 from .verify import verify_batch
 
@@ -87,6 +88,14 @@ def cmd_gateway_fixture(args: argparse.Namespace) -> int:
 def cmd_gateway_evidence(args: argparse.Namespace) -> int:
     print(pretty_json(load_gateway_evidence(
         args.workdir, args.receipts, args.terms, as_of=args.as_of
+    )), end="")
+    return 0
+
+
+def cmd_settle(args: argparse.Namespace) -> int:
+    print(pretty_json(run_settlement(
+        args.workdir, args.receipts, args.terms, args.contract, args.as_of,
+        ledger_path=args.ledger, contract_id=args.contract_id,
     )), end="")
     return 0
 
@@ -196,87 +205,52 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sub(sub: argparse._SubParsersAction, name: str, help_text: str, handler,
+         args: tuple[tuple[str, dict[str, Any]], ...]) -> argparse.ArgumentParser:
+    parser = sub.add_parser(name, help=help_text)
+    for flag, options in args:
+        parser.add_argument(flag, **options)
+    parser.set_defaults(func=handler)
+    return parser
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m lakemirror", description="Local dual-replica lake consistency console")
     sub = parser.add_subparsers(dest="command", required=True)
-    fixtures = sub.add_parser("fixtures", help="generate deterministic local fixture trees")
-    fixtures.add_argument("--scenario", required=True, choices=["clean_pair", "drift_basic", "schema_drift", "snapshot_lag"])
-    fixtures.add_argument("--seed", type=int, default=42)
-    fixtures.add_argument("--workdir", required=True)
-    fixtures.set_defaults(func=cmd_fixtures)
-
-    row_fixture = sub.add_parser("row-fixture", help="generate local order/event contract rows")
-    row_fixture.add_argument("--scenario", required=True, choices=ROW_SCENARIOS)
-    row_fixture.add_argument("--workdir", required=True)
-    row_fixture.set_defaults(func=cmd_row_fixture)
-
-    row_contract = sub.add_parser("row-contract", help="read-only as-of order/event verdict")
-    row_contract.add_argument("--workdir", required=True)
-    row_contract.add_argument("--contract", required=True)
-    row_contract.add_argument("--as-of", help="override observation time without changing the contract")
-    row_contract.set_defaults(func=cmd_row_contract)
-
-    gateway_fixture = sub.add_parser("gateway-fixture", help="generate order and mock gateway evidence")
-    gateway_fixture.add_argument("--scenario", required=True, choices=GATEWAY_SCENARIOS)
-    gateway_fixture.add_argument("--workdir", required=True)
-    gateway_fixture.set_defaults(func=cmd_gateway_fixture)
-
-    gateway_evidence = sub.add_parser("gateway-evidence", help="validate and view as-of gateway receipts")
-    gateway_evidence.add_argument("--workdir", required=True)
-    gateway_evidence.add_argument("--receipts", required=True)
-    gateway_evidence.add_argument("--terms", required=True)
-    gateway_evidence.add_argument("--as-of", required=True)
-    gateway_evidence.set_defaults(func=cmd_gateway_evidence)
-
-    scan = sub.add_parser("scan", help="reconcile primary and replica manifests")
-    scan.add_argument("--config", required=True)
-    scan.add_argument("--workdir", required=True)
-    scan.add_argument("--db")
-    scan.add_argument("--report")
-    scan.set_defaults(func=cmd_scan)
-
-    plan = sub.add_parser("plan", help="build a deterministic repair plan")
-    plan.add_argument("--scan-id", default="latest")
-    plan.add_argument("--workdir", required=True)
-    plan.add_argument("--db")
-    plan.add_argument("--out", required=True)
-    plan.add_argument("--kind", choices=["executable", "dry-run"], default="executable")
-    plan.set_defaults(func=cmd_plan)
-
-    apply = sub.add_parser("apply", help="dry-run or execute a plan inside the replica sandbox")
-    apply.add_argument("--plan", required=True)
-    apply.add_argument("--workdir", required=True)
-    apply.add_argument("--db")
-    apply.add_argument("--execute", action="store_true")
-    apply.set_defaults(func=cmd_apply)
-
-    verify = sub.add_parser("verify", help="rescan and verify a completed execution batch")
-    verify.add_argument("--batch-id", default="latest")
-    verify.add_argument("--workdir", required=True)
-    verify.add_argument("--db")
-    verify.set_defaults(func=cmd_verify)
-
-    rollback = sub.add_parser("rollback", help="restore a batch from its local backups")
-    rollback.add_argument("--batch-id", default="latest")
-    rollback.add_argument("--workdir", required=True)
-    rollback.add_argument("--db")
-    rollback.add_argument("--execute", action="store_true")
-    rollback.set_defaults(func=cmd_rollback)
-
-    report = sub.add_parser("report", help="render JSON, Markdown, or HTML")
-    report.add_argument("--workdir", required=True)
-    report.add_argument("--db")
-    report.add_argument("--run-id", default="latest")
-    report.add_argument("--format", choices=["json", "md", "html"], default="md")
-    report.add_argument("--out")
-    report.set_defaults(func=cmd_report)
-
-    serve = sub.add_parser("serve", help="start the loopback-only read-only review console")
-    serve.add_argument("--workdir", required=True)
-    serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8765)
-    serve.add_argument("--db")
-    serve.set_defaults(func=cmd_serve)
+    req = {"required": True}
+    _sub(sub, "fixtures", "generate deterministic local fixture trees", cmd_fixtures, (
+        ("--scenario", {**req, "choices": ["clean_pair", "drift_basic", "schema_drift", "snapshot_lag"]}),
+        ("--seed", {"type": int, "default": 42}), ("--workdir", req)))
+    _sub(sub, "row-fixture", "generate local order/event contract rows", cmd_row_fixture, (
+        ("--scenario", {**req, "choices": ROW_SCENARIOS}), ("--workdir", req)))
+    _sub(sub, "row-contract", "read-only as-of order/event verdict", cmd_row_contract, (
+        ("--workdir", req), ("--contract", req),
+        ("--as-of", {"help": "override observation time without changing the contract"})))
+    _sub(sub, "gateway-fixture", "generate order and mock gateway evidence", cmd_gateway_fixture, (
+        ("--scenario", {**req, "choices": GATEWAY_SCENARIOS}), ("--workdir", req)))
+    _sub(sub, "gateway-evidence", "validate and view as-of gateway receipts", cmd_gateway_evidence, (
+        ("--workdir", req), ("--receipts", req), ("--terms", req), ("--as-of", req)))
+    _sub(sub, "settle", "authorize merchant payouts and clear paid liabilities", cmd_settle, (
+        ("--workdir", req), ("--receipts", req), ("--terms", req), ("--contract", req),
+        ("--as-of", req), ("--ledger", {}), ("--contract-id", {})))
+    _sub(sub, "scan", "reconcile primary and replica manifests", cmd_scan, (
+        ("--config", req), ("--workdir", req), ("--db", {}), ("--report", {})))
+    _sub(sub, "plan", "build a deterministic repair plan", cmd_plan, (
+        ("--scan-id", {"default": "latest"}), ("--workdir", req), ("--db", {}), ("--out", req),
+        ("--kind", {"choices": ["executable", "dry-run"], "default": "executable"})))
+    _sub(sub, "apply", "dry-run or execute a plan inside the replica sandbox", cmd_apply, (
+        ("--plan", req), ("--workdir", req), ("--db", {}), ("--execute", {"action": "store_true"})))
+    _sub(sub, "verify", "rescan and verify a completed execution batch", cmd_verify, (
+        ("--batch-id", {"default": "latest"}), ("--workdir", req), ("--db", {})))
+    _sub(sub, "rollback", "restore a batch from its local backups", cmd_rollback, (
+        ("--batch-id", {"default": "latest"}), ("--workdir", req), ("--db", {}),
+        ("--execute", {"action": "store_true"})))
+    _sub(sub, "report", "render JSON, Markdown, or HTML", cmd_report, (
+        ("--workdir", req), ("--db", {}), ("--run-id", {"default": "latest"}),
+        ("--format", {"choices": ["json", "md", "html"], "default": "md"}), ("--out", {})))
+    _sub(sub, "serve", "start the loopback-only read-only review console", cmd_serve, (
+        ("--workdir", req), ("--host", {"default": "127.0.0.1"}),
+        ("--port", {"type": int, "default": 8765}), ("--db", {})))
     return parser
 
 
